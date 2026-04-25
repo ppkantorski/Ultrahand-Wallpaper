@@ -40,7 +40,28 @@ export function Designer() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [fileName, setFileName] = useState<string>("wallpaper");
   const [exporting, setExporting] = useState<null | "rgba" | "png">(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // compactHeader is hoisted here so sidebarOpen can be derived from it
+  // before the displayScale effect (which needs the sidebar width).
+  const headerRef = useRef<HTMLElement>(null);
+  const [compactHeader, setCompactHeader] = useState(false);
+
+  // Two independent memories — one per layout mode.
+  // Toggling always writes to the current mode's memory, so resizing
+  // back and forth always restores the right state for each mode.
+  const [sidebarOpenNormal, setSidebarOpenNormal] = useState(true);
+  const [sidebarOpenCompact, setSidebarOpenCompact] = useState(false);
+  const sidebarOpen = compactHeader ? sidebarOpenCompact : sidebarOpenNormal;
+  const setSidebarOpen = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      if (compactHeader) {
+        setSidebarOpenCompact((p) => (typeof next === "function" ? next(p) : next));
+      } else {
+        setSidebarOpenNormal((p) => (typeof next === "function" ? next(p) : next));
+      }
+    },
+    [compactHeader],
+  );
+
   const [recaching, setRecaching] = useState(false);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>("ultrahand");
 
@@ -303,8 +324,6 @@ export function Designer() {
   // Below ~520px the labels collapse to icon-only. Below the natural
   // width of banner + icon-only buttons + padding (~250px), the header
   // becomes horizontally scrollable so nothing ever truly overlaps.
-  const headerRef = useRef<HTMLElement>(null);
-  const [compactHeader, setCompactHeader] = useState(false);
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -316,17 +335,6 @@ export function Designer() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  // Auto-collapse the sidebar when the viewport shrinks into compact mode.
-  // We only trigger on the false→true transition so a user who manually
-  // reopens the sidebar won't get closed again on the next resize tick.
-  const prevCompactRef = useRef(false);
-  useEffect(() => {
-    if (compactHeader && !prevCompactRef.current) {
-      setSidebarOpen(false);
-    }
-    prevCompactRef.current = compactHeader;
-  }, [compactHeader]);
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
       const tgt = e.target as Node | null;
