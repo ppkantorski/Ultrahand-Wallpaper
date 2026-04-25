@@ -320,7 +320,7 @@ export function EditorCanvas({
         {/* Overlay frame — sits above canvas, never exported, pointer-events off */}
         {showOverlay && (
           <img
-            src="/overlay.png"
+            src={`${import.meta.env.BASE_URL}overlay.png`}
             alt=""
             aria-hidden="true"
             draggable={false}
