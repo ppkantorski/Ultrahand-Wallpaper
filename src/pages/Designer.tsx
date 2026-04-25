@@ -213,19 +213,21 @@ export function Designer() {
   const editorAreaRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState(false);
 
-  // Compact-mode: header buttons hide their text labels when there isn't
-  // enough horizontal room for them to render neatly. Driven by a
-  // ResizeObserver on the right-side button group's parent so it reacts
-  // both to viewport changes and to the sidebar opening/closing.
-  const headerRightRef = useRef<HTMLDivElement>(null);
+  // Compact-mode: the action buttons in the header drop their text
+  // labels when there isn't enough horizontal room for them to render
+  // neatly. We observe the header element itself (the scroll container)
+  // so this reacts to viewport changes, sidebar open/close, and any
+  // future content added to the header.
+  //
+  // Below ~520px the labels collapse to icon-only. Below the natural
+  // width of banner + icon-only buttons + padding (~250px), the header
+  // becomes horizontally scrollable so nothing ever truly overlaps.
+  const headerRef = useRef<HTMLElement>(null);
   const [compactHeader, setCompactHeader] = useState(false);
   useEffect(() => {
-    const el = headerRightRef.current;
+    const el = headerRef.current;
     if (!el) return;
-    // We collapse to icon-only when the available container width drops
-    // below this threshold. ~360px comfortably fits Clear + PNG + RGBA
-    // with their text labels and the gaps between them.
-    const THRESHOLD = 360;
+    const THRESHOLD = 520;
     const ro = new ResizeObserver((entries) => {
       const width = entries[0]?.contentRect.width ?? 0;
       setCompactHeader(width < THRESHOLD);
@@ -373,8 +375,14 @@ export function Designer() {
 
   return (
     <div className="h-screen w-full flex flex-col bg-background text-foreground overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between gap-3 px-6 py-3 border-b bg-card/50 backdrop-blur">
+      {/* Header — horizontally scrollable when content is too wide to fit.
+          Both the banner and the action buttons keep their natural widths
+          (flex-shrink-0); ml-auto pushes the buttons to the right whenever
+          there's spare room, otherwise the user can scroll. */}
+      <header
+        ref={headerRef}
+        className="flex items-center gap-3 px-6 py-3 border-b bg-card/50 backdrop-blur overflow-x-auto overflow-y-hidden"
+      >
         <div className="flex items-center gap-3 flex-shrink-0">
           <img
             src={`${import.meta.env.BASE_URL}ultrahand_banner.png`}
@@ -387,7 +395,7 @@ export function Designer() {
           />
         </div>
 
-        <div ref={headerRightRef} className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+        <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
           {image && (
             <Button
               variant="ghost"
