@@ -395,18 +395,25 @@ export function Designer() {
   // Shared SW update logic.
   // silent=true → no toast when already up to date (used on mount).
   // silent=false → toasts for all outcomes (used on logo click).
+  //
+  // We set the swJustUpdated flag BEFORE triggering the update, then
+  // clear it only if we determine no reload will happen. This is robust
+  // against the reload coming from any path — our own controllerchange
+  // listener, vite-plugin-pwa's internal listener, or the browser's
+  // natural SW lifecycle. As long as a reload happens for any reason
+  // while the flag is set, the post-reload toast fires.
   const checkForUpdate = useCallback(async (silent: boolean) => {
     if (!("serviceWorker" in navigator)) return;
+    sessionStorage.setItem("swJustUpdated", "1");
     try {
       const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) return;
+      if (!reg) {
+        sessionStorage.removeItem("swJustUpdated");
+        return;
+      }
 
       await reg.update();
 
-      // We just nudge the waiting SW to take over. The global
-      // controllerchange listener (set up in the effect below) will
-      // catch the resulting takeover, set the flag, and reload — so
-      // every activation path uses the exact same toast handoff.
       const activate = (sw: ServiceWorker) => {
         sw.postMessage({ type: "SKIP_WAITING" });
       };
@@ -423,10 +430,14 @@ export function Designer() {
         return;
       }
 
+      // No update found — clear the pre-set flag so the next mount
+      // doesn't show a stale "App updated" toast.
+      sessionStorage.removeItem("swJustUpdated");
       if (!silent) {
         toast({ title: "Already up to date", description: "App is current." });
       }
     } catch {
+      sessionStorage.removeItem("swJustUpdated");
       if (!silent) {
         toast({ title: "Server unreachable", description: "Using cached version." });
       }
