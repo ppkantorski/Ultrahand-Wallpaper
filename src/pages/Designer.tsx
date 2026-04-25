@@ -515,13 +515,13 @@ export function Designer() {
             </Button>
           )}
           <Button
-            variant="outline"
             size="sm"
             onClick={handleExportPng}
             disabled={!image || exporting !== null}
             data-testid="export-png"
             title="Export as PNG"
             aria-label="Export as PNG"
+            className="bg-primary/20 text-white hover:bg-primary/30 border-transparent"
           >
             <FileImage className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
             {!compactHeader && <span>{exporting === "png" ? "Exporting…" : "PNG"}</span>}
