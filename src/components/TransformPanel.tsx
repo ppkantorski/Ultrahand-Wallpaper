@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { type Transform } from "@/lib/imageProcessing";
-import { AlignCenterHorizontal, AlignCenterVertical, Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, Maximize2, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 
 export type Background =
   | { kind: "transparent" }
@@ -14,6 +14,8 @@ type Props = {
   onFitH: () => void;
   onFitV: () => void;
   onReset: () => void;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
   background: Background;
   onBackgroundChange: (bg: Background) => void;
   hasImage?: boolean;
@@ -26,6 +28,8 @@ export function TransformPanel({
   onFitH,
   onFitV,
   onReset,
+  onRotateLeft,
+  onRotateRight,
   background,
   onBackgroundChange,
   hasImage = true,
@@ -90,6 +94,36 @@ export function TransformPanel({
         >
           <AlignCenterHorizontal className="h-3.5 w-3.5 mr-1.5" />
           Fit H
+        </Button>
+      </div>
+
+      {/* Rotate buttons row */}
+      <div className="px-5 pb-3 flex gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRotateLeft}
+          disabled={!hasImage}
+          data-testid="rotate-left"
+          data-preserve-selection
+          className="flex-1 text-xs"
+          title="Rotate 90° counter-clockwise"
+        >
+          <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+          Rotate L
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRotateRight}
+          disabled={!hasImage}
+          data-testid="rotate-right"
+          data-preserve-selection
+          className="flex-1 text-xs"
+          title="Rotate 90° clockwise"
+        >
+          <RotateCw className="h-3.5 w-3.5 mr-1.5" />
+          Rotate R
         </Button>
       </div>
 
