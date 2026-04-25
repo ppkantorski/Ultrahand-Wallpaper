@@ -120,6 +120,7 @@ export function Designer() {
 
   const handleClear = useCallback(() => {
     setImage(null);
+    setFileName("wallpaper");
     reset(DEFAULT_DOC);
   }, [reset]);
 
