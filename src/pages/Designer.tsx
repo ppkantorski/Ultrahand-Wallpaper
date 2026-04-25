@@ -212,6 +212,27 @@ export function Designer() {
   // Selection state
   const editorAreaRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState(false);
+
+  // Compact-mode: header buttons hide their text labels when there isn't
+  // enough horizontal room for them to render neatly. Driven by a
+  // ResizeObserver on the right-side button group's parent so it reacts
+  // both to viewport changes and to the sidebar opening/closing.
+  const headerRightRef = useRef<HTMLDivElement>(null);
+  const [compactHeader, setCompactHeader] = useState(false);
+  useEffect(() => {
+    const el = headerRightRef.current;
+    if (!el) return;
+    // We collapse to icon-only when the available container width drops
+    // below this threshold. ~360px comfortably fits Clear + PNG + RGBA
+    // with their text labels and the gaps between them.
+    const THRESHOLD = 360;
+    const ro = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      setCompactHeader(width < THRESHOLD);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
       const tgt = e.target as Node | null;
@@ -353,8 +374,8 @@ export function Designer() {
   return (
     <div className="h-screen w-full flex flex-col bg-background text-foreground overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b bg-card/50 backdrop-blur">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between gap-3 px-6 py-3 border-b bg-card/50 backdrop-blur">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <img
             src={`${import.meta.env.BASE_URL}ultrahand_banner.png`}
             alt="Ultrahand"
@@ -364,53 +385,20 @@ export function Designer() {
             title="Click to check for updates"
             data-testid="banner"
           />
-          <div className="ml-2 flex items-center gap-0.5 border rounded-md p-0.5 bg-background/60">
-            <button
-              type="button"
-              onClick={undo}
-              disabled={!canUndo}
-              className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-              aria-label="Undo"
-              title="Undo (⌘Z)"
-              data-testid="undo"
-            >
-              <Undo2 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={redo}
-              disabled={!canRedo}
-              className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-              aria-label="Redo"
-              title="Redo (⇧⌘Z)"
-              data-testid="redo"
-            >
-              <Redo2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div ref={headerRightRef} className="flex items-center gap-2 flex-1 min-w-0 justify-end">
           {image && (
-            <div className="flex items-center gap-1 mr-1">
-              <input
-                type="text"
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                placeholder="filename"
-                className="h-8 w-44 rounded-md border border-border bg-background px-2 text-xs font-mono"
-                data-testid="filename-input"
-                aria-label="Output filename"
-              />
-              <span className="text-[11px] text-muted-foreground tabular-nums">
-                .png / .rgba
-              </span>
-            </div>
-          )}
-          {image && (
-            <Button variant="ghost" size="sm" onClick={handleClear} data-testid="clear-image">
-              <X className="h-3.5 w-3.5 mr-1.5" />
-              Clear
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClear}
+              data-testid="clear-image"
+              title="Clear image"
+              aria-label="Clear image"
+            >
+              <X className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
+              {!compactHeader && <span>Clear</span>}
             </Button>
           )}
           <Button
@@ -419,19 +407,23 @@ export function Designer() {
             onClick={handleExportPng}
             disabled={!image || exporting !== null}
             data-testid="export-png"
+            title="Export as PNG"
+            aria-label="Export as PNG"
           >
-            <FileImage className="h-3.5 w-3.5 mr-1.5" />
-            {exporting === "png" ? "Exporting…" : "PNG"}
+            <FileImage className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
+            {!compactHeader && <span>{exporting === "png" ? "Exporting…" : "PNG"}</span>}
           </Button>
           <Button
             size="sm"
             onClick={handleExportRgba}
             disabled={!image || exporting !== null}
             data-testid="export-rgba"
+            title="Export as RGBA"
+            aria-label="Export as RGBA"
             className="bg-primary/20 text-white hover:bg-primary/30 border-transparent"
           >
-            <Download className="h-3.5 w-3.5 mr-1.5" />
-            {exporting === "rgba" ? "Exporting…" : "RGBA"}
+            <Download className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
+            {!compactHeader && <span>{exporting === "rgba" ? "Exporting…" : "RGBA"}</span>}
           </Button>
         </div>
       </header>
@@ -514,6 +506,60 @@ export function Designer() {
 
           {/* Scrollable content — both panels stack naturally */}
           <div className={`overflow-y-auto flex-1 ${sidebarOpen ? "" : "invisible pointer-events-none"}`}>
+            {/* File section — undo/redo + output filename */}
+            <div className="border-b">
+              <div className="flex items-center justify-between px-5 py-4">
+                <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
+                  File
+                </h2>
+                <div className="flex items-center gap-0.5 border rounded-md p-0.5 bg-background/60">
+                  <button
+                    type="button"
+                    onClick={undo}
+                    disabled={!canUndo}
+                    className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    aria-label="Undo"
+                    title="Undo (⌘Z)"
+                    data-testid="undo"
+                  >
+                    <Undo2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={redo}
+                    disabled={!canRedo}
+                    className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    aria-label="Redo"
+                    title="Redo (⇧⌘Z)"
+                    data-testid="redo"
+                  >
+                    <Redo2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="px-5 pb-4 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium">Filename</span>
+                  <span className="text-muted-foreground tabular-nums">.png / .rgba</span>
+                </div>
+                <input
+                  type="text"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="wallpaper"
+                  disabled={!image}
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs font-mono disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="filename-input"
+                  aria-label="Output filename"
+                />
+                {!image && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Load an image to set the output name.
+                  </p>
+                )}
+              </div>
+            </div>
+
             <TransformPanel
               transform={transform}
               onChange={setTransform}
