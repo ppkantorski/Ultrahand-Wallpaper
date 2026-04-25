@@ -512,19 +512,6 @@ export function Designer() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-          {image && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClear}
-              data-testid="clear-image"
-              title="Clear image"
-              aria-label="Clear image"
-            >
-              <X className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
-              {!compactHeader && <span>Clear</span>}
-            </Button>
-          )}
           <Button
             size="sm"
             onClick={handleExportPng}
@@ -636,29 +623,45 @@ export function Designer() {
                 <h2 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">
                   File
                 </h2>
-                <div className="flex items-center gap-0.5 border rounded-md p-0.5 bg-background/60">
-                  <button
-                    type="button"
-                    onClick={undo}
-                    disabled={!canUndo}
-                    className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                    aria-label="Undo"
-                    title="Undo (⌘Z)"
-                    data-testid="undo"
-                  >
-                    <Undo2 className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={redo}
-                    disabled={!canRedo}
-                    className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                    aria-label="Redo"
-                    title="Redo (⇧⌘Z)"
-                    data-testid="redo"
-                  >
-                    <Redo2 className="h-3.5 w-3.5" />
-                  </button>
+                <div className="flex items-center gap-1.5">
+                  {image && (
+                    <div className="flex items-center border rounded-md p-0.5 bg-background/60">
+                      <button
+                        type="button"
+                        onClick={handleClear}
+                        className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate hover:text-destructive"
+                        aria-label="Clear image"
+                        title="Clear image"
+                        data-testid="clear-image"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-0.5 border rounded-md p-0.5 bg-background/60">
+                    <button
+                      type="button"
+                      onClick={undo}
+                      disabled={!canUndo}
+                      className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                      aria-label="Undo"
+                      title="Undo (⌘Z)"
+                      data-testid="undo"
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={redo}
+                      disabled={!canRedo}
+                      className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                      aria-label="Redo"
+                      title="Redo (⇧⌘Z)"
+                      data-testid="redo"
+                    >
+                      <Redo2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="px-5 pb-4 space-y-2">
