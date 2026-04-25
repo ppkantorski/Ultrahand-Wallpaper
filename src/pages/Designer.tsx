@@ -315,6 +315,10 @@ export function Designer() {
   const editorAreaRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState(false);
 
+  // Drag-over state for the replace-image drop target
+  const [draggingOver, setDraggingOver] = useState(false);
+  const dragCounterRef = useRef(0); // tracks nested dragenter/dragleave pairs
+
   // Compact-mode: the action buttons in the header drop their text
   // labels when there isn't enough horizontal room for them to render
   // neatly. We observe the header element itself (the scroll container)
@@ -570,19 +574,47 @@ export function Designer() {
             <div
               ref={editorAreaRef}
               style={{ width: FRAME_W * displayScale, height: FRAME_H * displayScale }}
+              onDragEnter={image ? (e) => {
+                e.preventDefault();
+                dragCounterRef.current += 1;
+                if (dragCounterRef.current === 1) setDraggingOver(true);
+              } : undefined}
+              onDragLeave={image ? () => {
+                dragCounterRef.current -= 1;
+                if (dragCounterRef.current === 0) setDraggingOver(false);
+              } : undefined}
+              onDragOver={image ? (e) => e.preventDefault() : undefined}
+              onDrop={image ? (e) => {
+                e.preventDefault();
+                dragCounterRef.current = 0;
+                setDraggingOver(false);
+                const file = e.dataTransfer.files[0];
+                if (file) loadFile(file);
+              } : undefined}
+              className="relative"
             >
               {image ? (
-                <EditorCanvas
-                  image={image}
-                  transform={transform}
-                  adjustments={adjustments}
-                  background={background}
-                  onTransformChange={setTransform}
-                  onCommit={commit}
-                  selected={selected}
-                  displayScale={displayScale}
-                  overlayMode={overlayMode}
-                />
+                <>
+                  <EditorCanvas
+                    image={image}
+                    transform={transform}
+                    adjustments={adjustments}
+                    background={background}
+                    onTransformChange={setTransform}
+                    onCommit={commit}
+                    selected={selected}
+                    displayScale={displayScale}
+                    overlayMode={overlayMode}
+                  />
+                  {/* Drop-to-replace overlay — shown while dragging a new image over the canvas */}
+                  {draggingOver && (
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded pointer-events-none"
+                      style={{ background: "rgba(0,0,0,0.6)", border: "2px dashed #22ff66", boxShadow: "0 0 16px rgba(34,255,102,0.35)" }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22ff66" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      <span className="text-sm font-medium" style={{ color: "#22ff66" }}>Drop to replace image</span>
+                    </div>
+                  )}
+                </>
               ) : (
                 <UploadZone onFile={loadFile} />
               )}
