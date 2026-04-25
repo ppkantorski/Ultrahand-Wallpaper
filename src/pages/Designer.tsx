@@ -20,6 +20,7 @@ const DEFAULT_TRANSFORM: Transform = {
   scale: 1,
   offsetX: 0,
   offsetY: 0,
+  rotation: 0,
 };
 
 type Doc = {
@@ -103,10 +104,10 @@ export function Designer() {
     [toast, reset],
   );
 
-  // Fit: cover (scale=1, both centered)
+  // Fit: cover (scale=1, both centered) — preserves the current rotation
   const handleFit = useCallback(() => {
-    setTransform({ scale: 1, offsetX: 0, offsetY: 0 });
-  }, [setTransform]);
+    setTransform({ scale: 1, offsetX: 0, offsetY: 0, rotation: transform.rotation });
+  }, [transform.rotation, setTransform]);
 
   // Fit W: center horizontally (X axis), keep scale and vertical position
   const handleFitH = useCallback(() => {
@@ -116,6 +117,22 @@ export function Designer() {
   // Fit H: center vertically (Y axis), keep scale and horizontal position
   const handleFitV = useCallback(() => {
     setTransform({ ...transform, offsetY: 0 });
+  }, [transform, setTransform]);
+
+  // Rotate by ±90°, normalized to [0, 360). Uses (x % 360 + 360) % 360
+  // so we never end up with negatives even when rotating left from 0.
+  const handleRotateLeft = useCallback(() => {
+    setTransform({
+      ...transform,
+      rotation: (((transform.rotation - 90) % 360) + 360) % 360,
+    });
+  }, [transform, setTransform]);
+
+  const handleRotateRight = useCallback(() => {
+    setTransform({
+      ...transform,
+      rotation: (transform.rotation + 90) % 360,
+    });
   }, [transform, setTransform]);
 
   const handleClear = useCallback(() => {
@@ -576,6 +593,8 @@ export function Designer() {
               onFitH={handleFitH}
               onFitV={handleFitV}
               onReset={() => setTransform(DEFAULT_TRANSFORM)}
+              onRotateLeft={handleRotateLeft}
+              onRotateRight={handleRotateRight}
               background={background}
               onBackgroundChange={setBackground}
               hasImage={!!image}
