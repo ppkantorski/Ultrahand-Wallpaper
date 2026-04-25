@@ -34,6 +34,8 @@ export type Transform = {
   scale: number;
   offsetX: number;
   offsetY: number;
+  /** Rotation in degrees. Always a multiple of 90, normalized to [0, 360). */
+  rotation: number;
 };
 
 export const FRAME_W = 448;
@@ -321,17 +323,30 @@ export function renderToCanvas(
     ctx.fillRect(0, 0, w, h);
   }
 
-  // Compute drawn image rect: at scale=1, image's longest side fits the frame (cover)
-  const baseScale = Math.max(w / image.width, h / image.height);
+  // Compute drawn image rect: at scale=1, image's longest side fits the frame (cover).
+  // For quarter rotations (90/270) the on-screen footprint dimensions swap, so we use
+  // effective dimensions when computing the cover-fit baseScale.
+  const isQuarter = (((transform.rotation / 90) | 0) & 1) === 1;
+  const effW = isQuarter ? image.height : image.width;
+  const effH = isQuarter ? image.width : image.height;
+  const baseScale = Math.max(w / effW, h / effH);
   const scale = baseScale * transform.scale;
-  const dw = image.width * scale;
-  const dh = image.height * scale;
-  const dx = (w - dw) / 2 + transform.offsetX;
-  const dy = (h - dh) / 2 + transform.offsetY;
+  // drawW/drawH are in the image's PRE-rotation coordinate space — these get
+  // rotated together with the canvas to land at the right size on screen.
+  const drawW = image.width * scale;
+  const drawH = image.height * scale;
+  const cx = w / 2 + transform.offsetX;
+  const cy = h / 2 + transform.offsetY;
 
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = options.quality === "export" ? "high" : "medium";
-  ctx.drawImage(image, dx, dy, dw, dh);
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (transform.rotation !== 0) {
+    ctx.rotate((transform.rotation * Math.PI) / 180);
+  }
+  ctx.drawImage(image, -drawW / 2, -drawH / 2, drawW, drawH);
+  ctx.restore();
 
   // Pixel adjustments
   const imageData = ctx.getImageData(0, 0, w, h);
