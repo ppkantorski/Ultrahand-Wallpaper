@@ -316,6 +316,17 @@ export function Designer() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Auto-collapse the sidebar when the viewport shrinks into compact mode.
+  // We only trigger on the false→true transition so a user who manually
+  // reopens the sidebar won't get closed again on the next resize tick.
+  const prevCompactRef = useRef(false);
+  useEffect(() => {
+    if (compactHeader && !prevCompactRef.current) {
+      setSidebarOpen(false);
+    }
+    prevCompactRef.current = compactHeader;
+  }, [compactHeader]);
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
       const tgt = e.target as Node | null;
