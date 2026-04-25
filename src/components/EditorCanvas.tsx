@@ -92,6 +92,13 @@ export function EditorCanvas({
     anchorY: number;
   } | null>(null);
 
+  // Wheel-zoom lock: while the user is actively scrolling/wheel-zooming we
+  // block new pan gestures from starting, and while a pan is active we
+  // ignore wheel events. This prevents the Magic Mouse "swipe while dragging"
+  // accident where a finger slide mid-pan fires scroll events and resizes.
+  const wheelActiveRef = useRef(false);
+  const wheelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Re-render whenever inputs change
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -132,6 +139,13 @@ export function EditorCanvas({
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Clean up the wheel debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
+    };
+  }, []);
+
   const imageRect = useMemo(() => {
     const baseScale = Math.max(FRAME_W / image.width, FRAME_H / image.height);
     const dw = image.width * baseScale * transform.scale;
@@ -162,12 +176,15 @@ export function EditorCanvas({
       pinchRef.current = { startDist: dist, startScale: transformRef.current.scale };
     } else {
       pinchRef.current = null;
-      panRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startOffsetX: transformRef.current.offsetX,
-        startOffsetY: transformRef.current.offsetY,
-      };
+      // Don't start a pan while a wheel-zoom gesture is still settling
+      if (!wheelActiveRef.current) {
+        panRef.current = {
+          startX: e.clientX,
+          startY: e.clientY,
+          startOffsetX: transformRef.current.offsetX,
+          startOffsetY: transformRef.current.offsetY,
+        };
+      }
     }
   }, []);
 
@@ -220,6 +237,19 @@ export function EditorCanvas({
   }, []);
 
   const onWheel = useCallback((e: React.WheelEvent) => {
+    // If a pointer-pan is in progress, ignore scroll/wheel entirely — this is
+    // the main cause of the Magic Mouse "drag then accidentally resize" bug.
+    if (panRef.current) return;
+
+    // Mark wheel as active and debounce the "settled" signal so a pan cannot
+    // start until the inertial scroll has fully stopped (~300 ms of silence).
+    wheelActiveRef.current = true;
+    if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
+    wheelTimerRef.current = setTimeout(() => {
+      wheelActiveRef.current = false;
+      wheelTimerRef.current = null;
+    }, 300);
+
     const delta = -e.deltaY * 0.0015;
     const next = Math.max(
       MIN_SCALE,
