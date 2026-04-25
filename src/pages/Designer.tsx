@@ -403,13 +403,11 @@ export function Designer() {
 
       await reg.update();
 
+      // We just nudge the waiting SW to take over. The global
+      // controllerchange listener (set up in the effect below) will
+      // catch the resulting takeover, set the flag, and reload — so
+      // every activation path uses the exact same toast handoff.
       const activate = (sw: ServiceWorker) => {
-        sessionStorage.setItem("swJustUpdated", "1");
-        navigator.serviceWorker.addEventListener(
-          "controllerchange",
-          () => window.location.reload(),
-          { once: true },
-        );
         sw.postMessage({ type: "SKIP_WAITING" });
       };
 
@@ -439,10 +437,36 @@ export function Designer() {
   toastRef.current = toast;
   const checkForUpdateRef = useRef(checkForUpdate);
   checkForUpdateRef.current = checkForUpdate;
+
+  // Permanent listener for SW takeovers from any source: vite-plugin-pwa's
+  // background auto-update, manual SKIP_WAITING (logo click), browser's
+  // natural SW lifecycle, etc. Without this, auto-updates would activate
+  // silently and the user would never know the app refreshed.
+  //
+  // Skip the first event if no controller existed when we mounted — that's
+  // the page acquiring its initial SW on a fresh visit, not an update.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const hadController = !!navigator.serviceWorker.controller;
+    let suppressedFirstChange = false;
+    const onControllerChange = () => {
+      if (!hadController && !suppressedFirstChange) {
+        suppressedFirstChange = true;
+        return;
+      }
+      sessionStorage.setItem("swJustUpdated", "1");
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
+  }, []);
+
   useEffect(() => {
     if (sessionStorage.getItem("swJustUpdated")) {
       sessionStorage.removeItem("swJustUpdated");
-      toastRef.current({ title: "App updated", description: "You're on the latest version." });
+      toastRef.current({ title: "App updated", description: "You're now running the latest version." });
     }
     checkForUpdateRef.current(true);
   }, []);
