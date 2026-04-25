@@ -66,7 +66,7 @@ export function UploadZone({ onFile }: Props) {
         <div>
           <p className="text-base font-medium">Drop an image to begin</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            or click to browse — PNG, JPG, WEBP, RGBA
+            or click to browse — PNG, JPG, GIF, WEBP, RGBA
           </p>
         </div>
       </div>
