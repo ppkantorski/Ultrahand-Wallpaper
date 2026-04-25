@@ -14,7 +14,12 @@ export function UploadZone({ onFile }: Props) {
     (files: FileList | null) => {
       if (!files || files.length === 0) return;
       const file = files[0]!;
-      if (!file.type.startsWith("image/")) return;
+      // Accept anything with an image/ MIME type, plus raw .rgba dumps.
+      // .rgba files typically have no MIME (or "application/octet-stream"),
+      // so we fall back to extension matching.
+      const isImage = file.type.startsWith("image/");
+      const isRgba = /\.rgba$/i.test(file.name);
+      if (!isImage && !isRgba) return;
       onFile(file);
     },
     [onFile],
@@ -45,7 +50,7 @@ export function UploadZone({ onFile }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.rgba"
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
         data-testid="upload-input"
@@ -61,7 +66,7 @@ export function UploadZone({ onFile }: Props) {
         <div>
           <p className="text-base font-medium">Drop an image to begin</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            or click to browse — PNG, JPG, WEBP
+            or click to browse — PNG, JPG, WEBP, RGBA
           </p>
         </div>
       </div>
