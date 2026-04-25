@@ -8,6 +8,8 @@ import {
 } from "@/lib/imageProcessing";
 import { type Background } from "./TransformPanel";
 
+export type OverlayMode = "ultrahand" | "ultragb" | "off";
+
 type Props = {
   image: HTMLImageElement;
   transform: Transform;
@@ -17,7 +19,7 @@ type Props = {
   onTransformChange: (next: Transform) => void;
   onCommit?: () => void;
   displayScale?: number;
-  showOverlay?: boolean;
+  overlayMode?: OverlayMode;
 };
 
 type HandleId = "tl" | "tr" | "bl" | "br" | "l" | "r" | "t" | "b";
@@ -56,7 +58,7 @@ export function EditorCanvas({
   onTransformChange,
   onCommit,
   displayScale = 0.7,
-  showOverlay = false,
+  overlayMode = "off",
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const transformRef = useRef(transform);
@@ -131,15 +133,9 @@ export function EditorCanvas({
   }, []);
 
   const imageRect = useMemo(() => {
-    // For 90/270 rotations the on-screen footprint of the image swaps width
-    // and height. Use effective dims so the selection box and resize handles
-    // wrap the actual rotated rectangle on screen.
-    const isQuarter = (((transform.rotation / 90) | 0) & 1) === 1;
-    const effW = isQuarter ? image.height : image.width;
-    const effH = isQuarter ? image.width : image.height;
-    const baseScale = Math.max(FRAME_W / effW, FRAME_H / effH);
-    const dw = effW * baseScale * transform.scale;
-    const dh = effH * baseScale * transform.scale;
+    const baseScale = Math.max(FRAME_W / image.width, FRAME_H / image.height);
+    const dw = image.width * baseScale * transform.scale;
+    const dh = image.height * baseScale * transform.scale;
     const cx = FRAME_W / 2 + transform.offsetX;
     const cy = FRAME_H / 2 + transform.offsetY;
     return {
@@ -278,21 +274,14 @@ export function EditorCanvas({
       }
       const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, r.startScale * factor));
       const baseScale = imageRect.baseScale;
-      // Use effective dims (rotation-aware) so the new screen rect after
-      // resize matches what the renderer will actually draw.
-      const cur = transformRef.current;
-      const isQuarter = (((cur.rotation / 90) | 0) & 1) === 1;
-      const effW = isQuarter ? image.height : image.width;
-      const effH = isQuarter ? image.width : image.height;
-      const newDw = effW * baseScale * newScale;
-      const newDh = effH * baseScale * newScale;
+      const newDw = image.width * baseScale * newScale;
+      const newDh = image.height * baseScale * newScale;
       const newCx = r.anchorX + (0.5 - info.ax) * newDw;
       const newCy = r.anchorY + (0.5 - info.ay) * newDh;
       onChangeRef.current({
         scale: newScale,
         offsetX: newCx - FRAME_W / 2,
         offsetY: newCy - FRAME_H / 2,
-        rotation: cur.rotation,
       });
     },
     [displayScale, image, imageRect.baseScale],
@@ -330,15 +319,18 @@ export function EditorCanvas({
           data-testid="editor-canvas"
         />
 
-        {/* Overlay frame — sits above canvas, never exported, pointer-events off */}
-        {showOverlay && (
+        {/* Overlay frame — sits above canvas, never exported, pointer-events off.
+            Different modes render different reference frames so users can
+            preview against the on-device chrome of different overlays. */}
+        {overlayMode !== "off" && (
           <img
-            src={`${import.meta.env.BASE_URL}overlay.png`}
+            src={`${import.meta.env.BASE_URL}${overlayMode === "ultragb" ? "gb_overlay.png" : "overlay.png"}`}
             alt=""
             aria-hidden="true"
             draggable={false}
             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
             data-testid="overlay-frame"
+            data-overlay-mode={overlayMode}
           />
         )}
       </div>
