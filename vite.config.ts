@@ -5,6 +5,7 @@ import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 
 export default defineConfig({
+  base: "/Ultrahand-Wallpaper/",
   plugins: [
     react(),
     tailwindcss(),
@@ -37,14 +38,14 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: "Ultrahand Wallpaper",
-        short_name: "Ultrahand Wallpaper",
-        description: "Design wallpapers for Ultrahand Overlay",
+        name: "Ultrahand Wallpaper Designer",
+        short_name: "Wallpaper",
+        description: "Design wallpapers for Ultrahand",
         theme_color: "#000000",
         background_color: "#000000",
         display: "standalone",
-        start_url: "/",
-        scope: "/",
+        start_url: "/Ultrahand-Wallpaper/",
+        scope: "/Ultrahand-Wallpaper/",
         icons: [
           {
             src: "/icon-192.png",
