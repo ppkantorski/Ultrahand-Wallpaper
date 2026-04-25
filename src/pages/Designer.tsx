@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useHistory } from "@/hooks/use-history";
 import { UploadZone } from "@/components/UploadZone";
-import { EditorCanvas } from "@/components/EditorCanvas";
+import { EditorCanvas, type OverlayMode } from "@/components/EditorCanvas";
 import { AdjustmentsPanel } from "@/components/AdjustmentsPanel";
 import { TransformPanel, type Background } from "@/components/TransformPanel";
 import {
@@ -42,7 +42,7 @@ export function Designer() {
   const [exporting, setExporting] = useState<null | "rgba" | "png">(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [recaching, setRecaching] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(true);
+  const [overlayMode, setOverlayMode] = useState<OverlayMode>("ultrahand");
 
   const { state: doc, set: setDoc, commit, undo, redo, reset, canUndo, canRedo } =
     useHistory<Doc>(DEFAULT_DOC);
@@ -558,7 +558,7 @@ export function Designer() {
                   onCommit={commit}
                   selected={selected}
                   displayScale={displayScale}
-                  showOverlay={showOverlay}
+                  overlayMode={overlayMode}
                 />
               ) : (
                 <UploadZone onFile={loadFile} />
@@ -579,17 +579,32 @@ export function Designer() {
                   <span className="opacity-40">•</span>
                   <button
                     type="button"
-                    onClick={() => setShowOverlay((v) => !v)}
-                    title={showOverlay ? "Hide overlay frame" : "Show overlay frame"}
+                    onClick={() =>
+                      setOverlayMode((m) =>
+                        m === "ultrahand" ? "ultragb" : m === "ultragb" ? "off" : "ultrahand",
+                      )
+                    }
+                    title={
+                      overlayMode === "ultrahand"
+                        ? "Switch to UltraGB overlay"
+                        : overlayMode === "ultragb"
+                          ? "Hide overlay"
+                          : "Show Ultrahand overlay"
+                    }
                     data-testid="toggle-overlay"
+                    data-overlay-mode={overlayMode}
                     className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors ${
-                      showOverlay
+                      overlayMode !== "off"
                         ? "text-[#22ff66] bg-[#22ff66]/10 hover:bg-[#22ff66]/20"
                         : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     }`}
                   >
                     <Layers className="h-3 w-3" />
-                    Overlay {showOverlay ? "on" : "off"}
+                    {overlayMode === "ultrahand"
+                      ? "Ultrahand"
+                      : overlayMode === "ultragb"
+                        ? "UltraGB"
+                        : "off"}
                   </button>
                 </>
               )}
