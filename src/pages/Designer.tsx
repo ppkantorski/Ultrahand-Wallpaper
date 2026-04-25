@@ -320,6 +320,10 @@ export function Designer() {
     const onPointerDown = (e: PointerEvent) => {
       const tgt = e.target as Node | null;
       if (!tgt) return;
+      // If the clicked element (or any ancestor) is marked data-preserve-selection,
+      // don't change the current selection state at all — e.g. TransformPanel buttons
+      // that update the transform but should keep the image focused with handles visible.
+      if ((tgt as Element).closest?.("[data-preserve-selection]")) return;
       if (editorAreaRef.current && editorAreaRef.current.contains(tgt)) {
         setSelected(true);
       } else {
