@@ -216,15 +216,6 @@ export function Designer() {
     const onPointerDown = (e: PointerEvent) => {
       const tgt = e.target as Node | null;
       if (!tgt) return;
-      // Elements marked data-preserve-selection are neutral: they neither
-      // grant nor revoke selection. Used for controls (e.g. Fit buttons)
-      // that act on the image without semantically clicking "off" of it.
-      if (
-        tgt instanceof Element &&
-        tgt.closest("[data-preserve-selection]")
-      ) {
-        return;
-      }
       if (editorAreaRef.current && editorAreaRef.current.contains(tgt)) {
         setSelected(true);
       } else {
@@ -365,7 +356,7 @@ export function Designer() {
       <header className="flex items-center justify-between px-6 py-3 border-b bg-card/50 backdrop-blur">
         <div className="flex items-center gap-3">
           <img
-            src="/ultrahand_banner.png"
+            src={`${import.meta.env.BASE_URL}ultrahand_banner.png`}
             alt="Ultrahand"
             onClick={handleLogoClick}
             className={`h-9 w-auto select-none cursor-pointer transition-opacity ${recaching ? "opacity-50 animate-pulse" : "hover:opacity-80"}`}
