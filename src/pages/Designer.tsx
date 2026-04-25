@@ -83,6 +83,69 @@ export function Designer() {
 
   const loadFile = useCallback(
     (file: File) => {
+      const isRgba = /\.rgba$/i.test(file.name);
+
+      if (isRgba) {
+        // Raw RGBA8888 — Ultrahand wallpaper format. The format has no
+        // header, so we can't infer dimensions from the file itself; the
+        // byte count must match exactly FRAME_W × FRAME_H × 4. Anything
+        // else gets rejected to avoid loading garbage.
+        const expectedBytes = FRAME_W * FRAME_H * 4;
+        if (file.size !== expectedBytes) {
+          toast({
+            title: "Invalid .rgba file",
+            description: `Expected ${expectedBytes.toLocaleString()} bytes (${FRAME_W} × ${FRAME_H} RGBA8888), got ${file.size.toLocaleString()}.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        file
+          .arrayBuffer()
+          .then((buf) => {
+            // ImageData wants a Uint8ClampedArray of length width*height*4.
+            const data = new Uint8ClampedArray(buf);
+            const imageData = new ImageData(data, FRAME_W, FRAME_H);
+            const canvas = document.createElement("canvas");
+            canvas.width = FRAME_W;
+            canvas.height = FRAME_H;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+              toast({
+                title: "Couldn't decode .rgba",
+                description: "Canvas 2D context unavailable.",
+                variant: "destructive",
+              });
+              return;
+            }
+            ctx.putImageData(imageData, 0, 0);
+            // Convert to a PNG data URL so the rest of the pipeline (which
+            // expects an HTMLImageElement) needs no special-casing.
+            const url = canvas.toDataURL("image/png");
+            const img = new Image();
+            img.onload = () => {
+              setImage(img);
+              reset(DEFAULT_DOC);
+              setFileName(file.name.replace(/\.[^.]+$/, "") || "wallpaper");
+            };
+            img.onerror = () => {
+              toast({
+                title: "Couldn't load image",
+                description: "Failed to render decoded RGBA data.",
+                variant: "destructive",
+              });
+            };
+            img.src = url;
+          })
+          .catch((err) => {
+            toast({
+              title: "Couldn't read .rgba",
+              description: (err as Error).message,
+              variant: "destructive",
+            });
+          });
+        return;
+      }
+
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
