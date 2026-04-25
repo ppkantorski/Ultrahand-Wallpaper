@@ -131,9 +131,15 @@ export function EditorCanvas({
   }, []);
 
   const imageRect = useMemo(() => {
-    const baseScale = Math.max(FRAME_W / image.width, FRAME_H / image.height);
-    const dw = image.width * baseScale * transform.scale;
-    const dh = image.height * baseScale * transform.scale;
+    // For 90/270 rotations the on-screen footprint of the image swaps width
+    // and height. Use effective dims so the selection box and resize handles
+    // wrap the actual rotated rectangle on screen.
+    const isQuarter = (((transform.rotation / 90) | 0) & 1) === 1;
+    const effW = isQuarter ? image.height : image.width;
+    const effH = isQuarter ? image.width : image.height;
+    const baseScale = Math.max(FRAME_W / effW, FRAME_H / effH);
+    const dw = effW * baseScale * transform.scale;
+    const dh = effH * baseScale * transform.scale;
     const cx = FRAME_W / 2 + transform.offsetX;
     const cy = FRAME_H / 2 + transform.offsetY;
     return {
@@ -272,14 +278,21 @@ export function EditorCanvas({
       }
       const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, r.startScale * factor));
       const baseScale = imageRect.baseScale;
-      const newDw = image.width * baseScale * newScale;
-      const newDh = image.height * baseScale * newScale;
+      // Use effective dims (rotation-aware) so the new screen rect after
+      // resize matches what the renderer will actually draw.
+      const cur = transformRef.current;
+      const isQuarter = (((cur.rotation / 90) | 0) & 1) === 1;
+      const effW = isQuarter ? image.height : image.width;
+      const effH = isQuarter ? image.width : image.height;
+      const newDw = effW * baseScale * newScale;
+      const newDh = effH * baseScale * newScale;
       const newCx = r.anchorX + (0.5 - info.ax) * newDw;
       const newCy = r.anchorY + (0.5 - info.ay) * newDh;
       onChangeRef.current({
         scale: newScale,
         offsetX: newCx - FRAME_W / 2,
         offsetY: newCy - FRAME_H / 2,
+        rotation: cur.rotation,
       });
     },
     [displayScale, image, imageRect.baseScale],
