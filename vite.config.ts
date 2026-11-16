@@ -6,6 +6,11 @@ import path from "path";
 
 export default defineConfig({
   base: "/Ultrahand-Wallpaper/",
+  // A different value in every build: lets the app notice it is running a newer build
+  // than last time and say so (see "App updated" in Designer.tsx).
+  define: {
+    __BUILD_ID__: JSON.stringify(Date.now().toString(36)),
+  },
   plugins: [
     react(),
     tailwindcss(),

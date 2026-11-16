@@ -40,6 +40,8 @@ const DEFAULT_DOC: Doc = {
   background: { kind: "transparent" },
 };
 
+declare const __BUILD_ID__: string;   // set per build in vite.config.ts
+
 export function Designer() {
   const { toast } = useToast();
   // What is being edited: a still image, or a video (animated wallpaper).
@@ -728,8 +730,26 @@ export function Designer() {
   }, []);
 
   useEffect(() => {
+    // "App updated" is shown in two cases:
+    //  - this build is not the one that ran here last time. The page itself is fetched
+    //    network-first, so a new build usually just arrives on a normal launch, with no
+    //    service-worker reload at that moment: without this check it arrived silently.
+    //  - the page was reloaded because a new service worker took over (the flag).
+    let updated = false;
+    if (import.meta.env.PROD) {
+      try {
+        const last = localStorage.getItem("buildId");
+        if (last !== __BUILD_ID__) localStorage.setItem("buildId", __BUILD_ID__);
+        updated = last !== null && last !== __BUILD_ID__;      // (first visit: nothing to announce)
+      } catch {
+        // storage unavailable (private mode): only the reload case below can tell
+      }
+    }
     if (sessionStorage.getItem("swJustUpdated")) {
       sessionStorage.removeItem("swJustUpdated");
+      updated = true;
+    }
+    if (updated) {
       toastRef.current({ title: "App updated", description: "You're now running the latest version." });
     }
     checkForUpdateRef.current(true);

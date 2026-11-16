@@ -173,6 +173,9 @@ function useToast() {
 
   React.useEffect(() => {
     listeners.push(setState)
+    // A toast raised before this component started listening (e.g. by another component's
+    // mount effect, as "App updated" is) would otherwise never be shown: catch up now.
+    if (state !== memoryState) setState(memoryState)
     return () => {
       const index = listeners.indexOf(setState)
       if (index > -1) {

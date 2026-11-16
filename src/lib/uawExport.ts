@@ -97,7 +97,15 @@ export async function exportUaw(opts: UawExportOptions): Promise<UawExportResult
       const t = Math.min(first + i / rate, lastTime);
       try {
         // (waits for the frame to really be on screen, not just for the seek to finish)
-        await seekVideoFrame(video, t, srcFrame);
+        const confirmed = await seekVideoFrame(video, t, srcFrame);
+        // The first seek is the long one, from wherever the playhead was. If the browser
+        // couldn't confirm the new frame (Safari captured the playhead's old picture as
+        // frame 0 here, which then flashed at every loop), give it more time and seek again.
+        if (i === 0 && !confirmed) {
+          await new Promise((r) => setTimeout(r, 400));
+          await seekVideoFrame(video, t + 1e-3, srcFrame);
+          await new Promise((r) => setTimeout(r, 200));
+        }
       } catch (err) {
         // a stalled seek (the tab was hidden meanwhile, a slow disk): try once more
         await whenVisible(signal);
