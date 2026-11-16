@@ -6,7 +6,7 @@
 [![GitHub issues](https://img.shields.io/github/issues/ppkantorski/Ultrahand-Wallpaper?color=222222)](https://github.com/ppkantorski/Ultrahand-Wallpaper/issues)
 [![GitHub stars](https://img.shields.io/github/stars/ppkantorski/Ultrahand-Wallpaper)](https://github.com/ppkantorski/Ultrahand-Wallpaper/stargazers)
 
-A browser-based wallpaper designer for [Ultrahand Overlay](https://github.com/ppkantorski/Ultrahand-Overlay). Crop, adjust, and export ready-to-drop wallpapers at the exact 448×720 dimensions Ultrahand expects — still images as `.rgba` / `.png`, videos as animated `.uaw` wallpapers — no installation, no signup, no server. Everything runs locally in your browser.
+A wallpaper designer for [Ultrahand Overlay](https://github.com/ppkantorski/Ultrahand-Overlay) that runs in your browser. Load a picture or a video, frame it inside Ultrahand's 448×720 wallpaper area, adjust it, and export a file you can copy straight to your SD card: `.rgba` or `.png` for stills, `.uaw` for animated wallpapers. Nothing is uploaded; your files stay on your device.
 
 **[→ Open the designer](https://ppkantorski.github.io/Ultrahand-Wallpaper/)**
 
@@ -14,18 +14,18 @@ A browser-based wallpaper designer for [Ultrahand Overlay](https://github.com/pp
 
 ## Features
 
-- **Drop, paste, or browse** any image (PNG, JPG, WEBP), video (MP4, MOV, WEBM — whatever your browser plays), animated GIF, or an existing `.uaw` — files never leave your device
-- **Animated wallpapers** — position, zoom, rotate and adjust a video exactly like an image, preview it playing or paused, pick the part to loop, the frame rate and the quality, and export a `.uaw`
-- **Frame & position** — fit, pan, zoom, and resize via handles, scroll wheel, or pinch gestures
-- **Light adjustments** — exposure, brightness, highlights, shadows, contrast, black point
-- **Color adjustments** — saturation, vibrance, warmth, tint
-- **Detail adjustments** — sharpness, definition, vignette
-- **Background control** — real transparent alpha or any solid color
-- **Overlay preview** — toggle the on-device frame so you can see how the wallpaper looks behind Ultrahand
-- **RGBA8888 / RGBA4444 preview** — the canvas shows full colour by default (what Ultrahand displays on 8 MB heaps and up); one click previews RGBA4444, the banding you get on smaller heaps. Exports are always 8-bit
-- **Export `.rgba`, `.png` or `.uaw`** — raw RGBA8888 or PNG for stills (for a video: the frame shown), `.uaw` for animated wallpapers; all go in `/config/ultrahand/wallpapers/`
-- **Undo/redo** — full history navigation (`⌘Z` / `⌘⇧Z`)
-- **Installable PWA** — works fully offline after the first visit
+- **Drop, paste, or browse**: images (PNG, JPG, WEBP, RGBA), videos (MP4, MOV, MKV, WEBM), animated GIFs, and existing `.uaw` files
+- **Animated wallpapers**: a video is framed and adjusted the same way as an image. Play or pause the preview, choose the part to loop, the frame rate and the quality, then export a `.uaw`
+- **Frame & position**: fit, pan, zoom, rotate, and resize with the handles, the scroll wheel, or a pinch
+- **Light adjustments**: exposure, brightness, highlights, shadows, contrast, black point
+- **Color adjustments**: saturation, vibrance, warmth, tint
+- **Detail adjustments**: sharpness, definition, vignette
+- **Background control**: transparent, or any solid color
+- **Overlay preview**: show the Ultrahand menu over your wallpaper to see how it will look on the console
+- **RGBA8888 / RGBA4444 preview**: the preview is full color by default. One click shows it as RGBA4444, which is how wallpapers look on overlay heaps below 8 MB. Exports are always 8-bit
+- **Export `.rgba`, `.png`, or `.uaw`**: for a video, `.rgba` and `.png` save the frame on screen
+- **Undo/redo**: `⌘Z` / `⌘⇧Z`
+- **Installable PWA**: works offline after the first visit
 
 ---
 
@@ -33,13 +33,29 @@ A browser-based wallpaper designer for [Ultrahand Overlay](https://github.com/pp
 
 1. Open the [designer](https://ppkantorski.github.io/Ultrahand-Wallpaper/).
 2. Drop, paste, or browse to load an image or a video.
-3. Use **Frame & Position** to crop and position inside the 448×720 frame.
-4. Tweak **Light / Color / Detail** sliders to taste.
-5. Click **RGBA** to download a ready-to-use `.rgba` file — or, for a video, set the **Animation** options (loop range, frame rate, quality) and click **UAW**.
+3. Use **Frame & Position** to place it inside the 448×720 frame.
+4. Adjust the **Light / Color / Detail** sliders if you want to.
+5. Click **RGBA** to download a `.rgba` file. For a video, set the **Animation** options and click **UAW** instead.
 6. Copy the file to `/config/ultrahand/wallpapers/` on your Switch SD card.
-7. In Ultrahand, open **Settings → Wallpaper** and select your new wallpaper.
+7. In Ultrahand, open **Settings → Wallpaper** and select it.
 
 > **Note:** Wallpapers require a 6 MB+ overlay heap to display. See the [Ultrahand wiki](https://github.com/ppkantorski/Ultrahand-Overlay/wiki) for heap configuration.
+
+---
+
+## Animated Wallpapers
+
+Loading a video, an animated GIF, or a `.uaw` adds a play button and scrub bar under the preview (Space also plays and pauses) and an **Animation** section to the side panel:
+
+- **Loop range**: the part of the video the wallpaper repeats. Drag either end, or scrub to a frame and press **Start here** / **End here**. Cut still intros and fades, or the loop will appear to pause.
+- **Frame rate**: the video's own rate (up to 30 fps) or lower. Lower rates make smaller files.
+- **Quality**: higher quality re-sends more of each frame, which means a larger file and more SD card reading while it plays. *Balanced* is a good default.
+
+**UAW** then renders every frame with your position, zoom, rotation, and slider settings and encodes the file in the browser. This takes a while for long clips, and the tab has to stay visible while it runs. Empty areas come out black, because `.uaw` has no transparency.
+
+Which videos load depends on your browser. MP4, MOV, and WEBM work almost everywhere. MKV works in Chrome and Edge when the video inside is H.264, VP9, or AV1. If a file won't open, convert it to MP4 first.
+
+Opening an existing `.uaw` lets you trim or adjust it and export it again. That re-encodes it, so expect a very small loss each time.
 
 ---
 
@@ -52,7 +68,9 @@ A browser-based wallpaper designer for [Ultrahand Overlay](https://github.com/pp
 | File size | 1,290,240 bytes (~1.23 MB), always |
 | Location | `/config/ultrahand/wallpapers/<name>.rgba` |
 
-The `.rgba` format is raw pixel data with no compression or metadata — exactly what `libultrahand` reads at runtime, which is why it's a fixed size.
+A `.rgba` file is raw pixel data with no compression or metadata, which is why its size never changes. It is what `libultrahand` reads at runtime.
+
+A `.uaw` file is a 448×720 animation made of 4×4 pixel blocks, where each frame stores only the blocks that changed. Its size depends on the clip. It goes in the same folder. The layout is documented at the top of [`src/lib/uaw.ts`](src/lib/uaw.ts), and Ultrahand Overlay's `extra/make_uaw.py` writes the same format from the command line.
 
 ---
 
@@ -64,7 +82,7 @@ For offline access and a dedicated app icon:
 - **iOS (Safari):** Share → *Add to Home Screen*
 - **Android (Chrome):** menu → *Install app*
 
-Once installed, the designer launches in its own window and works fully offline.
+Once installed, the designer opens in its own window and works offline.
 
 ---
 
@@ -86,6 +104,17 @@ pnpm run build      # outputs to dist/public/
 pnpm run serve      # preview the built output locally
 ```
 
+The encoder and the two decoders can be checked from the command line with Node 22+:
+
+```sh
+# raw 448×720 RGB24 frames in, .uaw out
+ffmpeg -i clip.mp4 -vf crop=448:720 -f rawvideo -pix_fmt rgb24 frames.rgb
+node test/uaw-test.ts frames.rgb out.uaw
+
+node test/uaw-decode-test.ts out.uaw frames.rgb24   # .uaw → raw RGB24 frames
+node test/gif-test.ts clip.gif frames.rgba          # GIF → raw RGBA frames
+```
+
 **Stack:** Vite · React 19 · TypeScript · Tailwind CSS 4 · Radix UI · vite-plugin-pwa.
 
 ---
@@ -100,9 +129,9 @@ Contributions are welcome. Please open an [issue](https://github.com/ppkantorski
 
 ## Related
 
-- [Ultrahand Overlay](https://github.com/ppkantorski/Ultrahand-Overlay) — the overlay menu these wallpapers are designed for
-- [libultrahand](https://github.com/ppkantorski/libultrahand) — the underlying rendering library
-- [Ultrahand Packages](https://github.com/ppkantorski/Ultrahand-Packages) — community packages and themes
+- [Ultrahand Overlay](https://github.com/ppkantorski/Ultrahand-Overlay): the overlay menu these wallpapers are made for
+- [libultrahand](https://github.com/ppkantorski/libultrahand): the underlying rendering library
+- [Ultrahand Packages](https://github.com/ppkantorski/Ultrahand-Packages): community packages and themes
 
 ---
 
@@ -111,29 +140,3 @@ Contributions are welcome. Please open an [issue](https://github.com/ppkantorski
 Licensed under [GPLv2](LICENSE).
 
 Copyright © 2026 ppkantorski
-
----
-
-## Animated wallpapers (.uaw)
-
-Load a video, an animated GIF or an existing `.uaw` (all handled exactly like a video) and an **Animation** section appears in the side panel, with a play / pause
-button and scrub bar under the preview (Space also plays / pauses).
-
-- **Loop range** — the part of the video the wallpaper repeats. Drag the two ends, or scrub
-  to a frame and use **Start here** / **End here**.
-- **Frame rate** — the video's own rate (up to 30) or lower. Lower rates make smaller files.
-- **Quality** — how much error a 4×4 block may keep before it is sent again. *Balanced*
-  (10) matches `make_uaw.py`'s default.
-
-**UAW** renders every frame through the same position, zoom, rotation and Light / Color /
-Detail settings as the preview, and encodes it in the browser (in a worker). Empty areas
-are black: `.uaw` pixels are opaque. The format is the one written by the overlay
-project's `extra/make_uaw.py`; `src/lib/uaw.ts` is a port of it and documents the layout.
-
-Checking the encoder outside the browser (raw 448×720 RGB24 frames in, `.uaw` out):
-
-```
-ffmpeg -i clip.mp4 -vf crop=448:720 -f rawvideo -pix_fmt rgb24 frames.rgb
-node test/uaw-test.ts frames.rgb out.uaw
-```
-

@@ -51,7 +51,7 @@ export function UploadZone({ onFile }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,video/*,.rgba,.uaw"
+        accept="image/*,video/*,.mkv,.rgba,.uaw"
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
         data-testid="upload-input"
@@ -69,7 +69,7 @@ export function UploadZone({ onFile }: Props) {
           <p className="mt-1 text-sm text-muted-foreground">or click to browse</p>
           {/* images first, then video; on its own line so it never wraps mid-list */}
           <p className="mt-2 text-xs text-muted-foreground whitespace-nowrap">
-            PNG, JPG, WEBP, RGBA, GIF, MP4, MOV, WEBM, UAW
+            PNG, JPG, WEBP, RGBA, GIF, MP4, MOV, MKV, WEBM, UAW
           </p>
         </div>
       </div>

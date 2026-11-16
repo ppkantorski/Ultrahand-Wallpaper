@@ -148,11 +148,29 @@ export async function loadVideo(file: File): Promise<VideoMedia> {
   video.preload = "auto";
   video.loop = false;
   try {
+    // What the browser can open depends on the browser: MP4 / MOV / WEBM nearly everywhere,
+    // MKV in Chrome and Edge, and only with video it has a decoder for (H.264, VP9, AV1;
+    // HEVC only on some devices).
+    const cantPlay = /\.mkv$/i.test(file.name)
+      ? "This browser can't play this MKV. Chrome and Edge open MKV files with H.264, VP9 or AV1 video; otherwise convert it to MP4 first."
+      : "This browser can't play that video format. Try converting it to MP4 (H.264).";
     await new Promise<void>((resolve, reject) => {
-      video.addEventListener("loadeddata", () => resolve(), { once: true });
+      // some unsupported files never report an error: don't wait forever
+      const timer = setTimeout(() => reject(new Error(cantPlay)), 15000);
+      video.addEventListener(
+        "loadeddata",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true },
+      );
       video.addEventListener(
         "error",
-        () => reject(new Error("This browser can't play that video format.")),
+        () => {
+          clearTimeout(timer);
+          reject(new Error(cantPlay));
+        },
         { once: true },
       );
       video.src = url;
