@@ -717,14 +717,14 @@ export function Designer() {
   }, [recaching, checkForUpdate]);
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background text-foreground overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-background text-foreground overflow-hidden">
       {/* Header — horizontally scrollable when content is too wide to fit.
           Both the banner and the action buttons keep their natural widths
           (flex-shrink-0); ml-auto pushes the buttons to the right whenever
           there's spare room, otherwise the user can scroll. */}
       <header
         ref={headerRef}
-        className="flex items-center gap-3 px-6 py-3 border-b bg-card/50 backdrop-blur overflow-x-auto overflow-y-hidden"
+        className="flex items-center gap-3 px-6 py-3 border-b bg-card/50 overflow-x-auto overflow-y-hidden overscroll-contain"
       >
         <div className="flex items-center gap-3 flex-shrink-0">
           <img
@@ -951,7 +951,7 @@ export function Designer() {
           </button>
 
           {/* Scrollable content — both panels stack naturally */}
-          <div className={`overflow-y-auto flex-1 ${sidebarOpen ? "" : "invisible pointer-events-none"}`}>
+          <div className={`overflow-y-auto overscroll-contain flex-1 ${sidebarOpen ? "" : "invisible pointer-events-none"}`}>
             {/* File section — undo/redo + output filename */}
             <div className="border-b">
               <div className="flex items-center justify-between px-5 py-4">

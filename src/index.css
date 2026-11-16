@@ -197,6 +197,22 @@
        Has no effect on Safari Magic Mouse smart zoom — that's OS-level. */
     touch-action: manipulation;
   }
+  /* The app is one fixed screen: the page itself never scrolls or rubber-bands (iOS lets
+     a touch drag the whole document otherwise, most visibly in the installed PWA). Panels
+     that need to scroll do so on their own. */
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+  }
+  #root {
+    height: 100%;
+  }
   * {
     @apply border-border;
   }
