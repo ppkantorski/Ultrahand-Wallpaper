@@ -859,6 +859,7 @@ export function Designer() {
                   <EditorCanvas
                     media={media}
                     previewDepth={previewDepth}
+                    previewFps={video ? videoSettings.fps : undefined}
                     transform={transform}
                     adjustments={adjustments}
                     background={background}

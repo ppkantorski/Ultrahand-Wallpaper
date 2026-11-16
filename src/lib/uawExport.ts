@@ -7,7 +7,7 @@ import {
   FRAME_W,
   renderToCanvas,
 } from "./imageProcessing";
-import { type VideoMedia, seekVideo } from "./media";
+import { type VideoMedia, seekVideo, seekVideoFrame } from "./media";
 import { type UawStats, fpsToFraction } from "./uaw";
 
 export type UawExportOptions = {
@@ -96,12 +96,13 @@ export async function exportUaw(opts: UawExportOptions): Promise<UawExportResult
       if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
       const t = Math.min(first + i / rate, lastTime);
       try {
-        await seekVideo(video, t);
+        // (waits for the frame to really be on screen, not just for the seek to finish)
+        await seekVideoFrame(video, t, srcFrame);
       } catch (err) {
         // a stalled seek (the tab was hidden meanwhile, a slow disk): try once more
         await whenVisible(signal);
         if (signal?.aborted || video.readyState < 1) throw err;
-        await seekVideo(video, t + 1e-3);
+        await seekVideoFrame(video, t + 1e-3, srcFrame);
       }
       if (document.hidden) {                  // hidden during the seek: redo this frame
         i--;

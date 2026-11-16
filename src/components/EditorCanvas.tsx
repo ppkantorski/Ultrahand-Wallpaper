@@ -16,6 +16,8 @@ type Props = {
   media: Media;
   /** Show colours as stored (8888) or as RGBA4444 output would look. */
   previewDepth?: PreviewDepth;
+  /** Video: play the preview at this frame rate (the export's), not the source's. */
+  previewFps?: number;
   transform: Transform;
   adjustments: Adjustments;
   background: Background;
@@ -56,6 +58,7 @@ const MAX_SCALE = 12;
 export function EditorCanvas({
   media,
   previewDepth = "8888",
+  previewFps,
   transform,
   adjustments,
   background,
@@ -125,6 +128,9 @@ export function EditorCanvas({
     drawRef.current();
   }, [media, transform, adjustments, background, previewDepth]);
 
+  const previewFpsRef = useRef(previewFps);
+  previewFpsRef.current = previewFps;
+
   // Video: redraw on every new frame (playing) and after every seek (paused, scrubbing,
   // exporting).
   useEffect(() => {
@@ -132,10 +138,18 @@ export function EditorCanvas({
     const video = media.el;
     let stopped = false;
     let handle = 0;
+    let lastSlot = -1;
     const perFrame = !!video.requestVideoFrameCallback;
     const loop = () => {
       if (stopped) return;
-      if (perFrame || !video.paused) drawRef.current();
+      // While playing, only draw when the export would show a new frame: the preview then
+      // moves exactly as the wallpaper will (a 15 fps export looks like 15 fps here too).
+      // (At the source's own rate every frame is drawn as it comes: nothing to thin out.)
+      const want = previewFpsRef.current;
+      const fps = want && want < media.fps * 0.99 ? want : 0;
+      const slot = fps && !video.paused ? Math.floor(video.currentTime * fps + 1e-6) : -1;
+      if ((perFrame || !video.paused) && (slot === -1 || slot !== lastSlot)) drawRef.current();
+      lastSlot = slot;
       handle = perFrame ? video.requestVideoFrameCallback!(loop) : requestAnimationFrame(loop);
     };
     handle = perFrame ? video.requestVideoFrameCallback!(loop) : requestAnimationFrame(loop);

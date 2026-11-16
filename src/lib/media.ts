@@ -97,6 +97,38 @@ export function seekVideo(video: VideoLike, time: number): Promise<void> {
 }
 
 /**
+ * Seeks, then also waits until the browser has actually put that frame up. "seeked" alone
+ * is not enough everywhere: Safari can fire it while the previous picture is still the one
+ * a canvas would draw, which bakes repeated or out-of-order frames into an export.
+ * `frameDur` is the source's frame length in seconds. Returns false if the frame's arrival
+ * could not be confirmed in time (the caller draws whatever is there).
+ */
+export async function seekVideoFrame(video: VideoLike, time: number, frameDur: number): Promise<boolean> {
+  if (!video.requestVideoFrameCallback) {
+    await seekVideo(video, time);
+    return true; // (GIF / UAW players draw synchronously)
+  }
+  let confirmed = false;
+  let handle = 0;
+  const shown = new Promise<void>((resolve) => {
+    const onFrame = (_now: number, meta: { mediaTime: number }) => {
+      // the frame on screen starts at or just before `time`
+      if (Math.abs(meta.mediaTime - time) <= frameDur * 1.5) {
+        confirmed = true;
+        resolve();
+      } else {
+        handle = video.requestVideoFrameCallback!(onFrame);
+      }
+    };
+    handle = video.requestVideoFrameCallback!(onFrame);
+  });
+  await seekVideo(video, time);
+  await Promise.race([shown, new Promise<void>((r) => setTimeout(r, 250))]);
+  if (!confirmed) video.cancelVideoFrameCallback?.(handle);
+  return confirmed;
+}
+
+/**
  * Measures the frame rate by playing a few frames (muted) and timing them, then snaps
  * to a common rate. Browsers don't expose it directly. Falls back to 30.
  */
