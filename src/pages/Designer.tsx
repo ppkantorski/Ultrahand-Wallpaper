@@ -141,7 +141,8 @@ export function Designer() {
       const uaw = isUawFile(file);
       if (isVideoFile(file) || animatedGif || uaw) {
         setLoadingVideo(true);
-        (uaw ? loadUaw(file) : animatedGif ? loadGif(file) : loadVideo(file))
+        // (a GIF that has one frame, or that our decoder can't read, resolves null)
+        (uaw ? loadUaw(file) : animatedGif ? loadGif(file).catch(() => null) : loadVideo(file))
           .then((m) => {
             if (!m) {
               loadFileRef.current(file, true);

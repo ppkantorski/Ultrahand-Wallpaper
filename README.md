@@ -14,7 +14,7 @@ A wallpaper designer for [Ultrahand Overlay](https://github.com/ppkantorski/Ultr
 
 ## Features
 
-- **Drop, paste, or browse**: images (PNG, JPG, WEBP, RGBA), videos (MP4, MOV, MKV, WEBM), animated GIFs, and existing `.uaw` files
+- **Drop, paste, or browse**: images (PNG, JPG, GIF, WEBP, RGBA), videos (MP4, MOV, MKV, WEBM), animated GIFs, and existing `.uaw` files
 - **Animated wallpapers**: a video is framed and adjusted the same way as an image. Play or pause the preview, choose the part to loop, the frame rate and the quality, then export a `.uaw`
 - **Frame & position**: fit, pan, zoom, rotate, and resize with the handles, the scroll wheel, or a pinch
 - **Light adjustments**: exposure, brightness, highlights, shadows, contrast, black point

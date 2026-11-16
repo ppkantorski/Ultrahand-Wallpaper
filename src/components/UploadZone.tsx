@@ -67,9 +67,11 @@ export function UploadZone({ onFile }: Props) {
         <div>
           <p className="text-base font-medium">Drop an image or video to begin</p>
           <p className="mt-1 text-sm text-muted-foreground">or click to browse</p>
-          {/* images first, then video; on its own line so it never wraps mid-list */}
+          {/* one list, broken where the video formats start */}
           <p className="mt-2 text-xs text-muted-foreground whitespace-nowrap">
-            PNG, JPG, WEBP, RGBA, GIF, MP4, MOV, MKV, WEBM, UAW
+            PNG, JPG, GIF, WEBP, RGBA,
+            <br />
+            MP4, MOV, MKV, WEBM, UAW
           </p>
         </div>
       </div>
