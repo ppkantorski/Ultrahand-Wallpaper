@@ -744,7 +744,7 @@ export function Designer() {
               onClick={handleExportUaw}
               disabled={!video || exporting !== null}
               data-testid="export-uaw"
-              title={video ? "Export as an animated wallpaper (.uaw)" : "Load a video, GIF or UAW to export an animated wallpaper (.uaw)"}
+              title={video ? "Export as an animated wallpaper (.uaw)" : "Load a video to export an animated wallpaper (.uaw)"}
               aria-label="Export as UAW"
               className="bg-[#ff3b3b]/20 text-white hover:bg-[#ff3b3b]/30 border-transparent"
             >
@@ -1001,7 +1001,7 @@ export function Designer() {
               <div className="px-5 pb-4 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-medium">Filename</span>
-                  <span className="text-muted-foreground tabular-nums">{video ? ".uaw / .png / .rgba" : ".png / .rgba"}</span>
+                  <span className="text-muted-foreground tabular-nums">{media?.kind === "image" ? ".png / .rgba" : ".uaw / .png / .rgba"}</span>
                 </div>
                 <input
                   type="text"
@@ -1015,7 +1015,7 @@ export function Designer() {
                 />
                 {!media && (
                   <p className="text-[11px] text-muted-foreground">
-                    Load an image, video, GIF or UAW to set the output name.
+                    Load an image or video to set the output name.
                   </p>
                 )}
               </div>
