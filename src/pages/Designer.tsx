@@ -17,7 +17,7 @@ import {
   FRAME_W,
   renderToCanvas,
 } from "@/lib/imageProcessing";
-import { type Media, disposeMedia, isVideoFile, loadVideo } from "@/lib/media";
+import { type Media, disposeMedia, isGifFile, isUawFile, isVideoFile, loadGif, loadUaw, loadVideo } from "@/lib/media";
 import { exportUaw, uawFrameCount } from "@/lib/uawExport";
 import { ChevronLeft, ChevronRight, FileImage, Film, Layers, Redo2, Undo2, X } from "lucide-react";
 
@@ -132,12 +132,21 @@ export function Designer() {
     return () => window.removeEventListener("resize", compute);
   }, [sidebarOpen, isVideo]);
 
+  const loadFileRef = useRef<(file: File, gifAsStill?: boolean) => void>(() => {});
   const loadFile = useCallback(
-    (file: File) => {
-      if (isVideoFile(file)) {
+    (file: File, gifAsStill = false) => {
+      // Videos, plus animated GIFs and existing .uaw wallpapers (both handled exactly
+      // like videos). A GIF with one frame comes back null and loads as an image below.
+      const animatedGif = isGifFile(file) && !gifAsStill;
+      const uaw = isUawFile(file);
+      if (isVideoFile(file) || animatedGif || uaw) {
         setLoadingVideo(true);
-        loadVideo(file)
+        (uaw ? loadUaw(file) : animatedGif ? loadGif(file) : loadVideo(file))
           .then((m) => {
+            if (!m) {
+              loadFileRef.current(file, true);
+              return;
+            }
             replaceMedia(m);
             reset(DEFAULT_DOC);
             setFileName(file.name.replace(/\.[^.]+$/, "") || "wallpaper");
@@ -147,7 +156,7 @@ export function Designer() {
           })
           .catch((err) => {
             toast({
-              title: "Couldn't load video",
+              title: uaw ? "Couldn't load UAW" : animatedGif ? "Couldn't load GIF" : "Couldn't load video",
               description: (err as Error).message,
               variant: "destructive",
             });
@@ -159,6 +168,7 @@ export function Designer() {
       const asImage = (img: HTMLImageElement): Media => ({
         kind: "image",
         el: img,
+        source: img,
         width: img.naturalWidth,
         height: img.naturalHeight,
       });
@@ -245,6 +255,7 @@ export function Designer() {
     },
     [toast, reset, replaceMedia],
   );
+  loadFileRef.current = loadFile;
 
   // Fit: cover (scale=1, both centered) — preserves the current rotation
   const handleFit = useCallback(() => {
@@ -292,7 +303,7 @@ export function Designer() {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("2D context unavailable");
     // (a video exports the frame on screen)
-    renderToCanvas(ctx, media.el, media.width, media.height, transform, adjustments, {
+    renderToCanvas(ctx, media.source, media.width, media.height, transform, adjustments, {
       quality: "export",
       background,
     });
@@ -543,8 +554,6 @@ export function Designer() {
   }, [media]);
 
   // Paste image from clipboard
-  const loadFileRef = useRef(loadFile);
-  loadFileRef.current = loadFile;
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -729,13 +738,13 @@ export function Designer() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-          {video && (
+          {(
             <Button
               size="sm"
               onClick={handleExportUaw}
-              disabled={exporting !== null}
+              disabled={!video || exporting !== null}
               data-testid="export-uaw"
-              title="Export as an animated wallpaper (.uaw)"
+              title={video ? "Export as an animated wallpaper (.uaw)" : "Load a video, GIF or UAW to export an animated wallpaper (.uaw)"}
               aria-label="Export as UAW"
               className="bg-[#ff3b3b]/20 text-white hover:bg-[#ff3b3b]/30 border-transparent"
             >
@@ -756,7 +765,7 @@ export function Designer() {
             data-testid="export-png"
             title={video ? "Export the frame shown as PNG" : "Export as PNG"}
             aria-label="Export as PNG"
-            className="bg-[#22ff66]/20 text-white hover:bg-[#22ff66]/30 border-transparent"
+            className="bg-[#c54fd0]/20 text-white hover:bg-[#c54fd0]/30 border-transparent"
           >
             <FileImage className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
             {!compactHeader && <span>{exporting === "png" ? "Exporting…" : "PNG"}</span>}
@@ -831,7 +840,7 @@ export function Designer() {
               )}
               {loadingVideo && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 text-sm text-muted-foreground">
-                  Loading video…
+                  Loading…
                 </div>
               )}
             </div>
@@ -956,7 +965,7 @@ export function Designer() {
                         onClick={handleClear}
                         className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate hover:text-destructive"
                         aria-label="Clear"
-                        title={video ? "Clear video" : "Clear image"}
+                        title={video ? `Clear ${video.format === "video" ? "video" : video.format.toUpperCase()}` : "Clear image"}
                         data-testid="clear-image"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -1006,7 +1015,7 @@ export function Designer() {
                 />
                 {!media && (
                   <p className="text-[11px] text-muted-foreground">
-                    Load an image or video to set the output name.
+                    Load an image, video, GIF or UAW to set the output name.
                   </p>
                 )}
               </div>

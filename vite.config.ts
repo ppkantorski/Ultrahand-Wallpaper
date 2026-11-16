@@ -16,6 +16,12 @@ export default defineConfig({
         globPatterns: [
           "**/*.{js,mjs,cjs,css,ico,png,svg,webp,jpg,jpeg,gif,woff,woff2,ttf,otf,eot}",
         ],
+        // index.html is not precached (the page is fetched network-first below, so an
+        // online visit always gets the newest build). Without this line Workbox still
+        // registers its default "serve precached index.html" navigation route, which
+        // finds nothing, shadows the network-first route, and leaves the installed app
+        // unable to open offline.
+        navigateFallback: null,
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,

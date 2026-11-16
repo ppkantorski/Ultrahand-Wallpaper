@@ -14,7 +14,7 @@ A browser-based wallpaper designer for [Ultrahand Overlay](https://github.com/pp
 
 ## Features
 
-- **Drop, paste, or browse** any image (PNG, JPG, WEBP) or video (MP4, MOV, WEBM — whatever your browser plays) — files never leave your device
+- **Drop, paste, or browse** any image (PNG, JPG, WEBP), video (MP4, MOV, WEBM — whatever your browser plays), animated GIF, or an existing `.uaw` — files never leave your device
 - **Animated wallpapers** — position, zoom, rotate and adjust a video exactly like an image, preview it playing or paused, pick the part to loop, the frame rate and the quality, and export a `.uaw`
 - **Frame & position** — fit, pan, zoom, and resize via handles, scroll wheel, or pinch gestures
 - **Light adjustments** — exposure, brightness, highlights, shadows, contrast, black point
@@ -116,7 +116,7 @@ Copyright © 2026 ppkantorski
 
 ## Animated wallpapers (.uaw)
 
-Load a video and an **Animation** section appears in the side panel, with a play / pause
+Load a video, an animated GIF or an existing `.uaw` (all handled exactly like a video) and an **Animation** section appears in the side panel, with a play / pause
 button and scrub bar under the preview (Space also plays / pauses).
 
 - **Loop range** — the part of the video the wallpaper repeats. Drag the two ends, or scrub

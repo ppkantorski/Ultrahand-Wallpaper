@@ -107,7 +107,7 @@ export async function exportUaw(opts: UawExportOptions): Promise<UawExportResult
         i--;
         continue;
       }
-      renderToCanvas(ctx, video, media.width, media.height, opts.transform, opts.adjustments, {
+      renderToCanvas(ctx, media.source, media.width, media.height, opts.transform, opts.adjustments, {
         quality: "export",
         background: opts.background,
       });

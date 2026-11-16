@@ -113,7 +113,7 @@ export function EditorCanvas({
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
-    renderToCanvas(ctx, media.el, media.width, media.height, transform, adjustments, {
+    renderToCanvas(ctx, media.source, media.width, media.height, transform, adjustments, {
       quality: "preview",
       background,
       quantize4444: previewDepth === "4444",
@@ -129,10 +129,7 @@ export function EditorCanvas({
   // exporting).
   useEffect(() => {
     if (media.kind !== "video") return;
-    const video = media.el as HTMLVideoElement & {
-      requestVideoFrameCallback?: (cb: () => void) => number;
-      cancelVideoFrameCallback?: (handle: number) => void;
-    };
+    const video = media.el;
     let stopped = false;
     let handle = 0;
     const perFrame = !!video.requestVideoFrameCallback;
