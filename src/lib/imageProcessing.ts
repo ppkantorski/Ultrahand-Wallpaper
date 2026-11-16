@@ -302,14 +302,33 @@ export function quantizeToRGBA4444(imageData: ImageData) {
   }
 }
 
+/** True when no slider is moved: rendering can skip the per-pixel pass. */
+export function isDefaultAdjustments(adj: Adjustments) {
+  return (Object.keys(DEFAULT_ADJUSTMENTS) as (keyof Adjustments)[]).every(
+    (k) => adj[k] === 0,
+  );
+}
+
+/** How the preview shows colour: as stored (8 bits per channel) or as RGBA4444. */
+export type PreviewDepth = "8888" | "4444";
+
+/**
+ * Draws the source (an image, or a video's current frame) into the 448 x 720 frame
+ * with the transform and adjustments applied. `srcW` / `srcH` are the source's own
+ * pixel size (naturalWidth / videoWidth ...).
+ */
 export function renderToCanvas(
   ctx: CanvasRenderingContext2D,
-  image: HTMLImageElement,
+  source: CanvasImageSource,
+  srcW: number,
+  srcH: number,
   transform: Transform,
   adj: Adjustments,
   options: {
     quality?: "preview" | "export";
     background?: { kind: "transparent" } | { kind: "color"; color: string };
+    /** Quantize to RGBA4444 after everything else (preview of 4-bit output). */
+    quantize4444?: boolean;
   } = {},
 ) {
   const w = ctx.canvas.width;
@@ -323,18 +342,18 @@ export function renderToCanvas(
     ctx.fillRect(0, 0, w, h);
   }
 
-  // Compute drawn image rect: at scale=1, image's longest side fits the frame (cover).
+  // Compute drawn rect: at scale=1, the source's longest side fits the frame (cover).
   // For quarter rotations (90/270) the on-screen footprint dimensions swap, so we use
   // effective dimensions when computing the cover-fit baseScale.
   const isQuarter = (((transform.rotation / 90) | 0) & 1) === 1;
-  const effW = isQuarter ? image.height : image.width;
-  const effH = isQuarter ? image.width : image.height;
+  const effW = isQuarter ? srcH : srcW;
+  const effH = isQuarter ? srcW : srcH;
   const baseScale = Math.max(w / effW, h / effH);
   const scale = baseScale * transform.scale;
-  // drawW/drawH are in the image's PRE-rotation coordinate space — these get
+  // drawW/drawH are in the source's PRE-rotation coordinate space — these get
   // rotated together with the canvas to land at the right size on screen.
-  const drawW = image.width * scale;
-  const drawH = image.height * scale;
+  const drawW = srcW * scale;
+  const drawH = srcH * scale;
   const cx = w / 2 + transform.offsetX;
   const cy = h / 2 + transform.offsetY;
 
@@ -345,8 +364,11 @@ export function renderToCanvas(
   if (transform.rotation !== 0) {
     ctx.rotate((transform.rotation * Math.PI) / 180);
   }
-  ctx.drawImage(image, -drawW / 2, -drawH / 2, drawW, drawH);
+  ctx.drawImage(source, -drawW / 2, -drawH / 2, drawW, drawH);
   ctx.restore();
+
+  // Nothing to change per pixel (the usual case while a video plays): done.
+  if (!options.quantize4444 && isDefaultAdjustments(adj)) return;
 
   // Pixel adjustments
   const imageData = ctx.getImageData(0, 0, w, h);
@@ -363,9 +385,9 @@ export function renderToCanvas(
     applyVignette(imageData, adj.vignette);
   }
 
-  // Preview-only: quantize to RGBA4444 so what you see matches what the
-  // wallpaper will look like at that bit depth. Exports stay 8-bit.
-  if (options.quality === "preview") {
+  // Optional: quantize to RGBA4444 so the preview matches 4-bit output (overlay heaps
+  // below 8 MB). Exports always stay 8-bit.
+  if (options.quantize4444) {
     quantizeToRGBA4444(imageData);
   }
 

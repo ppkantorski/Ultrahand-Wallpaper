@@ -6,15 +6,20 @@ import { UploadZone } from "@/components/UploadZone";
 import { EditorCanvas, type OverlayMode } from "@/components/EditorCanvas";
 import { AdjustmentsPanel } from "@/components/AdjustmentsPanel";
 import { TransformPanel, type Background } from "@/components/TransformPanel";
+import { VideoPanel, type ExportProgress, type VideoSettings, formatBytes } from "@/components/VideoPanel";
+import { VideoTransport } from "@/components/VideoTransport";
 import {
   type Adjustments,
+  type PreviewDepth,
   type Transform,
   DEFAULT_ADJUSTMENTS,
   FRAME_H,
   FRAME_W,
   renderToCanvas,
 } from "@/lib/imageProcessing";
-import { ChevronLeft, ChevronRight, Download, FileImage, Layers, Redo2, Undo2, X } from "lucide-react";
+import { type Media, disposeMedia, isVideoFile, loadVideo } from "@/lib/media";
+import { exportUaw, uawFrameCount } from "@/lib/uawExport";
+import { ChevronLeft, ChevronRight, FileImage, Film, Layers, Redo2, Undo2, X } from "lucide-react";
 
 const DEFAULT_TRANSFORM: Transform = {
   scale: 1,
@@ -37,9 +42,32 @@ const DEFAULT_DOC: Doc = {
 
 export function Designer() {
   const { toast } = useToast();
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  // What is being edited: a still image, or a video (animated wallpaper).
+  const [media, setMedia] = useState<Media | null>(null);
+  const mediaRef = useRef<Media | null>(null);
+  const video = media?.kind === "video" ? media : null;
+  // Swaps the edited media, releasing the previous video (element + object URL).
+  const replaceMedia = useCallback((next: Media | null) => {
+    if (mediaRef.current !== next) disposeMedia(mediaRef.current);
+    mediaRef.current = next;
+    setMedia(next);
+  }, []);
+  const [loadingVideo, setLoadingVideo] = useState(false);
   const [fileName, setFileName] = useState<string>("wallpaper");
-  const [exporting, setExporting] = useState<null | "rgba" | "png">(null);
+  const [exporting, setExporting] = useState<null | "rgba" | "png" | "uaw">(null);
+  // Preview colour depth: as stored (default), or as RGBA4444 output looks.
+  const [previewDepth, setPreviewDepth] = useState<PreviewDepth>("8888");
+
+  // Video only: the part to use, its frame rate and quality; and playback state.
+  const [videoSettings, setVideoSettings] = useState<VideoSettings>({ start: 0, end: 0, fps: 30, quality: 10 });
+  const videoSettingsRef = useRef(videoSettings);
+  videoSettingsRef.current = videoSettings;
+  const [playing, setPlaying] = useState(false);
+  const [videoTime, setVideoTime] = useState(0);
+  const [exportProgress, setExportProgress] = useState<ExportProgress | null>(null);
+  const exportAbortRef = useRef<AbortController | null>(null);
+  const exportingRef = useRef(exporting);
+  exportingRef.current = exporting;
   // compactHeader is hoisted here so sidebarOpen can be derived from it
   // before the displayScale effect (which needs the sidebar width).
   const headerRef = useRef<HTMLElement>(null);
@@ -82,13 +110,15 @@ export function Designer() {
     [setDoc],
   );
 
+  const isVideo = !!video;
+
   // Responsive display scale for the preview canvas
   const [displayScale, setDisplayScale] = useState(1);
   useEffect(() => {
     const compute = () => {
       const h = window.innerHeight;
       const w = window.innerWidth;
-      const maxH = h - 150;
+      const maxH = h - 150 - (isVideo ? 44 : 0); // room for the transport bar
       const sidebarW = sidebarOpen ? 320 : 0;
       const maxW = w - sidebarW - 96;
       const s = Math.max(
@@ -100,10 +130,38 @@ export function Designer() {
     compute();
     window.addEventListener("resize", compute);
     return () => window.removeEventListener("resize", compute);
-  }, [sidebarOpen]);
+  }, [sidebarOpen, isVideo]);
 
   const loadFile = useCallback(
     (file: File) => {
+      if (isVideoFile(file)) {
+        setLoadingVideo(true);
+        loadVideo(file)
+          .then((m) => {
+            replaceMedia(m);
+            reset(DEFAULT_DOC);
+            setFileName(file.name.replace(/\.[^.]+$/, "") || "wallpaper");
+            // the video's own rate when the overlay can play it, else 30
+            setVideoSettings({ start: 0, end: m.duration, fps: m.fps <= 30 ? m.fps : 30, quality: 10 });
+            setVideoTime(0);
+          })
+          .catch((err) => {
+            toast({
+              title: "Couldn't load video",
+              description: (err as Error).message,
+              variant: "destructive",
+            });
+          })
+          .finally(() => setLoadingVideo(false));
+        return;
+      }
+
+      const asImage = (img: HTMLImageElement): Media => ({
+        kind: "image",
+        el: img,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
       const isRgba = /\.rgba$/i.test(file.name);
 
       if (isRgba) {
@@ -144,7 +202,7 @@ export function Designer() {
             const url = canvas.toDataURL("image/png");
             const img = new Image();
             img.onload = () => {
-              setImage(img);
+              replaceMedia(asImage(img));
               reset(DEFAULT_DOC);
               setFileName(file.name.replace(/\.[^.]+$/, "") || "wallpaper");
             };
@@ -170,7 +228,7 @@ export function Designer() {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        setImage(img);
+        replaceMedia(asImage(img));
         reset(DEFAULT_DOC);
         setFileName(file.name.replace(/\.[^.]+$/, "") || "wallpaper");
         URL.revokeObjectURL(url);
@@ -185,7 +243,7 @@ export function Designer() {
       };
       img.src = url;
     },
-    [toast, reset],
+    [toast, reset, replaceMedia],
   );
 
   // Fit: cover (scale=1, both centered) — preserves the current rotation
@@ -220,24 +278,26 @@ export function Designer() {
   }, [transform, setTransform]);
 
   const handleClear = useCallback(() => {
-    setImage(null);
+    exportAbortRef.current?.abort();
+    replaceMedia(null);
     setFileName("wallpaper");
     reset(DEFAULT_DOC);
-  }, [reset]);
+  }, [reset, replaceMedia]);
 
   const renderExportCanvas = useCallback(() => {
-    if (!image) throw new Error("No image loaded");
+    if (!media) throw new Error("Nothing loaded");
     const canvas = document.createElement("canvas");
     canvas.width = FRAME_W;
     canvas.height = FRAME_H;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("2D context unavailable");
-    renderToCanvas(ctx, image, transform, adjustments, {
+    // (a video exports the frame on screen)
+    renderToCanvas(ctx, media.el, media.width, media.height, transform, adjustments, {
       quality: "export",
       background,
     });
     return { canvas, ctx };
-  }, [image, transform, adjustments, background]);
+  }, [media, transform, adjustments, background]);
 
   const triggerDownload = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -257,7 +317,7 @@ export function Designer() {
   }, [fileName]);
 
   const handleExportRgba = useCallback(async () => {
-    if (!image) return;
+    if (!media) return;
     setExporting("rgba");
     try {
       const { ctx } = renderExportCanvas();
@@ -279,10 +339,10 @@ export function Designer() {
     } finally {
       setExporting(null);
     }
-  }, [image, renderExportCanvas, safeName, toast]);
+  }, [media, renderExportCanvas, safeName, toast]);
 
   const handleExportPng = useCallback(async () => {
-    if (!image) return;
+    if (!media) return;
     setExporting("png");
     try {
       const { canvas } = renderExportCanvas();
@@ -304,11 +364,133 @@ export function Designer() {
     } finally {
       setExporting(null);
     }
-  }, [image, renderExportCanvas, safeName, toast]);
+  }, [media, renderExportCanvas, safeName, toast]);
+
+  // ==== Video: animated wallpaper (.uaw) export ====
+  const videoFrames = video ? uawFrameCount(videoSettings.start, videoSettings.end, videoSettings.fps) : 0;
+
+  const handleExportUaw = useCallback(async () => {
+    if (!video || exportingRef.current) return;
+    const { start, end, fps, quality } = videoSettingsRef.current;
+    const abort = new AbortController();
+    exportAbortRef.current = abort;
+    setExporting("uaw");
+    setExportProgress({ done: 0, total: uawFrameCount(start, end, fps), bytes: 32 });
+    try {
+      const { blob, stats, fpsNum, fpsDen } = await exportUaw({
+        media: video,
+        transform,
+        adjustments,
+        background,
+        start,
+        end,
+        fps,
+        quality,
+        signal: abort.signal,
+        onProgress: (done, total, st) => setExportProgress({ done, total, bytes: st.bytes }),
+      });
+      triggerDownload(blob, `${safeName}.uaw`);
+      const seconds = stats.frames / (fpsNum / fpsDen);
+      toast({
+        title: "Animated wallpaper exported",
+        description: `${safeName}.uaw · ${stats.frames} frames at ${+(fpsNum / fpsDen).toFixed(2)} fps · ${formatBytes(blob.size)} (${(blob.size / 1e6 / seconds).toFixed(2)} MB/s while playing)`,
+      });
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        toast({ title: "Export failed", description: (err as Error).message, variant: "destructive" });
+      }
+    } finally {
+      exportAbortRef.current = null;
+      setExportProgress(null);
+      setExporting(null);
+    }
+  }, [video, transform, adjustments, background, safeName, toast]);
+
+  // ==== Video: playback (looping the chosen range) ====
+  useEffect(() => {
+    if (!video) {
+      setPlaying(false);
+      return;
+    }
+    const el = video.el;
+    const restart = () => {
+      if (exportingRef.current) return;
+      el.currentTime = videoSettingsRef.current.start;
+      void el.play().catch(() => {});
+    };
+    // The button always mirrors the element itself (never a remembered guess): set now,
+    // on every play / pause event, and re-checked each frame below.
+    const syncPlaying = () => setPlaying(!el.paused);
+    syncPlaying();
+    const onPlay = syncPlaying;
+    const onPause = syncPlaying;
+    const onSeeked = () => setVideoTime(el.currentTime);
+    el.addEventListener("play", onPlay);
+    el.addEventListener("pause", onPause);
+    el.addEventListener("seeked", onSeeked);
+    el.addEventListener("ended", restart);
+    let raf = 0;
+    let lastShown = 0;
+    const tick = (now: number) => {
+      syncPlaying();                          // (no re-render when unchanged)
+      if (!el.paused && !exportingRef.current) {
+        if (el.currentTime >= videoSettingsRef.current.end - 0.005) restart();
+        if (now - lastShown > 100) {          // the readout: 10 times a second is plenty
+          lastShown = now;
+          setVideoTime(el.currentTime);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("play", onPlay);
+      el.removeEventListener("pause", onPause);
+      el.removeEventListener("seeked", onSeeked);
+      el.removeEventListener("ended", restart);
+    };
+  }, [video]);
+
+  const togglePlay = useCallback(() => {
+    if (!video || exportingRef.current) return;
+    const el = video.el;
+    if (!el.paused) {
+      el.pause();
+      return;
+    }
+    const { start, end } = videoSettingsRef.current;
+    if (el.currentTime < start || el.currentTime >= end - 0.005) el.currentTime = start;
+    void el.play().catch(() => {});
+  }, [video]);
+
+  const seekTo = useCallback(
+    (t: number) => {
+      if (!video || exportingRef.current) return;
+      video.el.currentTime = Math.max(0, Math.min(t, video.duration));
+      setVideoTime(t);
+    },
+    [video],
+  );
+
+  // Changing the range shows the frame at the edge being moved (while paused).
+  const changeVideoSettings = useCallback(
+    (next: VideoSettings) => {
+      const prev = videoSettingsRef.current;
+      setVideoSettings(next);
+      if (!video || !video.el.paused) return;
+      if (next.start !== prev.start) seekTo(next.start);
+      else if (next.end !== prev.end) seekTo(Math.max(next.start, next.end - 1 / next.fps));
+    },
+    [video, seekTo],
+  );
+
+  // Release the video when the page goes away.
+  useEffect(() => () => disposeMedia(mediaRef.current), []);
 
   const dimensionLabel = useMemo(
-    () => (image ? `${image.naturalWidth} × ${image.naturalHeight}` : null),
-    [image],
+    () => (media ? `${media.width} × ${media.height}` : null),
+    [media],
   );
 
   // Selection state
@@ -357,8 +539,8 @@ export function Designer() {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
   useEffect(() => {
-    if (!image) setSelected(false);
-  }, [image]);
+    if (!media) setSelected(false);
+  }, [media]);
 
   // Paste image from clipboard
   const loadFileRef = useRef(loadFile);
@@ -389,8 +571,10 @@ export function Designer() {
   redoRef.current = redo;
   const handleClearRef = useRef(handleClear);
   handleClearRef.current = handleClear;
-  const imageRef = useRef(image);
-  imageRef.current = image;
+  const imageRef = useRef(media);
+  imageRef.current = media;
+  const togglePlayRef = useRef(togglePlay);
+  togglePlayRef.current = togglePlay;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tgt = e.target as HTMLElement | null;
@@ -399,6 +583,12 @@ export function Designer() {
       if (tgt?.isContentEditable) return;
       const mod = e.metaKey || e.ctrlKey;
       const k = e.key;
+      // Space → play / pause a loaded video
+      if (k === " " && !mod && imageRef.current?.kind === "video" && tag !== "BUTTON") {
+        e.preventDefault();
+        togglePlayRef.current();
+        return;
+      }
       // Delete / Backspace → clear the loaded image
       if ((k === "Delete" || k === "Backspace") && !mod && imageRef.current) {
         e.preventDefault();
@@ -539,14 +729,34 @@ export function Designer() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+          {video && (
+            <Button
+              size="sm"
+              onClick={handleExportUaw}
+              disabled={exporting !== null}
+              data-testid="export-uaw"
+              title="Export as an animated wallpaper (.uaw)"
+              aria-label="Export as UAW"
+              className="bg-[#ff3b3b]/20 text-white hover:bg-[#ff3b3b]/30 border-transparent"
+            >
+              <Film className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
+              {!compactHeader && (
+                <span>
+                  {exporting === "uaw" && exportProgress
+                    ? `${Math.round((exportProgress.done / Math.max(1, exportProgress.total)) * 100)}%`
+                    : "UAW"}
+                </span>
+              )}
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={handleExportPng}
-            disabled={!image || exporting !== null}
+            disabled={!media || exporting !== null}
             data-testid="export-png"
-            title="Export as PNG"
+            title={video ? "Export the frame shown as PNG" : "Export as PNG"}
             aria-label="Export as PNG"
-            className="bg-primary/20 text-white hover:bg-primary/30 border-transparent"
+            className="bg-[#22ff66]/20 text-white hover:bg-[#22ff66]/30 border-transparent"
           >
             <FileImage className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
             {!compactHeader && <span>{exporting === "png" ? "Exporting…" : "PNG"}</span>}
@@ -554,13 +764,13 @@ export function Designer() {
           <Button
             size="sm"
             onClick={handleExportRgba}
-            disabled={!image || exporting !== null}
+            disabled={!media || exporting !== null}
             data-testid="export-rgba"
-            title="Export as RGBA"
+            title={video ? "Export the frame shown as RGBA" : "Export as RGBA"}
             aria-label="Export as RGBA"
             className="bg-primary/20 text-white hover:bg-primary/30 border-transparent"
           >
-            <Download className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
+            <FileImage className={`h-3.5 w-3.5 ${compactHeader ? "" : "mr-1.5"}`} />
             {!compactHeader && <span>{exporting === "rgba" ? "Exporting…" : "RGBA"}</span>}
           </Button>
         </div>
@@ -574,17 +784,17 @@ export function Designer() {
             <div
               ref={editorAreaRef}
               style={{ width: FRAME_W * displayScale, height: FRAME_H * displayScale }}
-              onDragEnter={image ? (e) => {
+              onDragEnter={media ? (e) => {
                 e.preventDefault();
                 dragCounterRef.current += 1;
                 if (dragCounterRef.current === 1) setDraggingOver(true);
               } : undefined}
-              onDragLeave={image ? () => {
+              onDragLeave={media ? () => {
                 dragCounterRef.current -= 1;
                 if (dragCounterRef.current === 0) setDraggingOver(false);
               } : undefined}
-              onDragOver={image ? (e) => e.preventDefault() : undefined}
-              onDrop={image ? (e) => {
+              onDragOver={media ? (e) => e.preventDefault() : undefined}
+              onDrop={media ? (e) => {
                 e.preventDefault();
                 dragCounterRef.current = 0;
                 setDraggingOver(false);
@@ -593,10 +803,11 @@ export function Designer() {
               } : undefined}
               className="relative"
             >
-              {image ? (
+              {media ? (
                 <>
                   <EditorCanvas
-                    image={image}
+                    media={media}
+                    previewDepth={previewDepth}
                     transform={transform}
                     adjustments={adjustments}
                     background={background}
@@ -611,14 +822,35 @@ export function Designer() {
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded pointer-events-none"
                       style={{ background: "rgba(0,0,0,0.6)", border: "2px dashed #22ff66", boxShadow: "0 0 16px rgba(34,255,102,0.35)" }}>
                       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22ff66" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                      <span className="text-sm font-medium" style={{ color: "#22ff66" }}>Drop to replace image</span>
+                      <span className="text-sm font-medium" style={{ color: "#22ff66" }}>Drop to replace</span>
                     </div>
                   )}
                 </>
               ) : (
                 <UploadZone onFile={loadFile} />
               )}
+              {loadingVideo && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 text-sm text-muted-foreground">
+                  Loading video…
+                </div>
+              )}
             </div>
+
+            {/* Video: play / pause + scrub, right under the picture */}
+            {video && (
+              <div style={{ width: FRAME_W * displayScale }}>
+                <VideoTransport
+                  playing={playing}
+                  time={videoTime}
+                  duration={video.duration}
+                  start={videoSettings.start}
+                  end={videoSettings.end}
+                  disabled={exporting !== null}
+                  onToggle={togglePlay}
+                  onSeek={seekTo}
+                />
+              </div>
+            )}
 
             {/* Below-canvas info row */}
             <div className="flex items-center gap-3 text-[11px] text-muted-foreground tabular-nums">
@@ -626,11 +858,34 @@ export function Designer() {
               {dimensionLabel && (
                 <>
                   <span className="opacity-40">•</span>
-                  <span>Source {dimensionLabel}</span>
+                  <span>
+                    Source {dimensionLabel}
+                    {video ? ` · ${video.fps} fps` : ""}
+                  </span>
                 </>
               )}
-              {image && (
+              {media && (
                 <>
+                  <span className="opacity-40">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDepth((d) => (d === "8888" ? "4444" : "8888"))}
+                    title={
+                      previewDepth === "8888"
+                        ? "Showing full colour (RGBA8888). Click to preview RGBA4444, as shown on overlay heaps below 8 MB."
+                        : "Previewing RGBA4444 (overlay heaps below 8 MB). Click for full colour. Exports are always 8-bit."
+                    }
+                    data-testid="toggle-depth"
+                    data-preview-depth={previewDepth}
+                    data-preserve-selection
+                    className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors ${
+                      previewDepth === "4444"
+                        ? "text-[#22ff66] bg-[#22ff66]/10 hover:bg-[#22ff66]/20"
+                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    }`}
+                  >
+                    {previewDepth === "8888" ? "RGBA8888" : "RGBA4444 preview"}
+                  </button>
                   <span className="opacity-40">•</span>
                   <button
                     type="button"
@@ -694,14 +949,14 @@ export function Designer() {
                   File
                 </h2>
                 <div className="flex items-center gap-1.5">
-                  {image && (
+                  {media && (
                     <div className="flex items-center border rounded-md p-0.5 bg-background/60">
                       <button
                         type="button"
                         onClick={handleClear}
                         className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground hover-elevate hover:text-destructive"
-                        aria-label="Clear image"
-                        title="Clear image"
+                        aria-label="Clear"
+                        title={video ? "Clear video" : "Clear image"}
                         data-testid="clear-image"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -737,26 +992,38 @@ export function Designer() {
               <div className="px-5 pb-4 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-medium">Filename</span>
-                  <span className="text-muted-foreground tabular-nums">.png / .rgba</span>
+                  <span className="text-muted-foreground tabular-nums">{video ? ".uaw / .png / .rgba" : ".png / .rgba"}</span>
                 </div>
                 <input
                   type="text"
                   value={fileName}
                   onChange={(e) => setFileName(e.target.value)}
                   placeholder="wallpaper"
-                  disabled={!image}
+                  disabled={!media}
                   className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs font-mono disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="filename-input"
                   aria-label="Output filename"
                 />
-                {!image && (
+                {!media && (
                   <p className="text-[11px] text-muted-foreground">
-                    Load an image to set the output name.
+                    Load an image or video to set the output name.
                   </p>
                 )}
               </div>
             </div>
 
+            {video && (
+              <VideoPanel
+                settings={videoSettings}
+                onChange={changeVideoSettings}
+                duration={video.duration}
+                sourceFps={video.fps}
+                time={videoTime}
+                frames={videoFrames}
+                progress={exportProgress}
+                onCancelExport={() => exportAbortRef.current?.abort()}
+              />
+            )}
             <TransformPanel
               transform={transform}
               onChange={setTransform}
@@ -768,7 +1035,8 @@ export function Designer() {
               onRotateRight={handleRotateRight}
               background={background}
               onBackgroundChange={setBackground}
-              hasImage={!!image}
+              hasImage={!!media}
+              isVideo={!!video}
             />
             <AdjustmentsPanel
               adjustments={adjustments}

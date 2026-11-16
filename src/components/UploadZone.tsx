@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Upload, ImageIcon } from "lucide-react";
+import { isVideoFile } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -19,7 +20,7 @@ export function UploadZone({ onFile }: Props) {
       // so we fall back to extension matching.
       const isImage = file.type.startsWith("image/");
       const isRgba = /\.rgba$/i.test(file.name);
-      if (!isImage && !isRgba) return;
+      if (!isImage && !isRgba && !isVideoFile(file)) return;
       onFile(file);
     },
     [onFile],
@@ -50,7 +51,7 @@ export function UploadZone({ onFile }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,.rgba"
+        accept="image/*,video/*,.rgba"
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
         data-testid="upload-input"
@@ -64,9 +65,9 @@ export function UploadZone({ onFile }: Props) {
           )}
         </div>
         <div>
-          <p className="text-base font-medium">Drop an image to begin</p>
+          <p className="text-base font-medium">Drop an image or video to begin</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            or click to browse — PNG, JPG, GIF, WEBP, RGBA
+            or click to browse — PNG, JPG, WEBP, RGBA · MP4, MOV, WEBM
           </p>
         </div>
       </div>

@@ -19,6 +19,8 @@ type Props = {
   background: Background;
   onBackgroundChange: (bg: Background) => void;
   hasImage?: boolean;
+  /** A video is loaded: .uaw has no alpha, so "transparent" exports as black. */
+  isVideo?: boolean;
 };
 
 export function TransformPanel({
@@ -33,6 +35,7 @@ export function TransformPanel({
   background,
   onBackgroundChange,
   hasImage = true,
+  isVideo = false,
 }: Props) {
   return (
     <div className="border-b">
@@ -231,7 +234,9 @@ export function TransformPanel({
           )}
           <p className="text-[11px] text-muted-foreground">
             {background.kind === "transparent"
-              ? "Empty areas export with a real alpha channel."
+              ? isVideo
+                ? "Empty areas are black in a .uaw (it has no alpha); PNG / RGBA keep real alpha."
+                : "Empty areas export with a real alpha channel."
               : "Empty areas filled with the chosen color."}
           </p>
         </div>

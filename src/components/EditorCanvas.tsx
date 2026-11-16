@@ -1,17 +1,21 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import {
   type Adjustments,
+  type PreviewDepth,
   type Transform,
   FRAME_W,
   FRAME_H,
   renderToCanvas,
 } from "@/lib/imageProcessing";
+import { type Media } from "@/lib/media";
 import { type Background } from "./TransformPanel";
 
 export type OverlayMode = "ultrahand" | "ultragb" | "off";
 
 type Props = {
-  image: HTMLImageElement;
+  media: Media;
+  /** Show colours as stored (8888) or as RGBA4444 output would look. */
+  previewDepth?: PreviewDepth;
   transform: Transform;
   adjustments: Adjustments;
   background: Background;
@@ -50,7 +54,8 @@ const MIN_SCALE = 0.05;
 const MAX_SCALE = 12;
 
 export function EditorCanvas({
-  image,
+  media,
+  previewDepth = "8888",
   transform,
   adjustments,
   background,
@@ -99,17 +104,55 @@ export function EditorCanvas({
   const wheelActiveRef = useRef(false);
   const wheelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Re-render whenever inputs change
-  useEffect(() => {
+  // Draws the current picture (an image, or the video's current frame) with the
+  // latest settings. Kept in a ref so the video frame loop below always draws with
+  // what is on screen now, without restarting on every slider move.
+  const drawRef = useRef<() => void>(() => {});
+  drawRef.current = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
-    renderToCanvas(ctx, image, transform, adjustments, {
+    renderToCanvas(ctx, media.el, media.width, media.height, transform, adjustments, {
       quality: "preview",
       background,
+      quantize4444: previewDepth === "4444",
     });
-  }, [image, transform, adjustments, background]);
+  };
+
+  // Re-render whenever inputs change
+  useEffect(() => {
+    drawRef.current();
+  }, [media, transform, adjustments, background, previewDepth]);
+
+  // Video: redraw on every new frame (playing) and after every seek (paused, scrubbing,
+  // exporting).
+  useEffect(() => {
+    if (media.kind !== "video") return;
+    const video = media.el as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: () => void) => number;
+      cancelVideoFrameCallback?: (handle: number) => void;
+    };
+    let stopped = false;
+    let handle = 0;
+    const perFrame = !!video.requestVideoFrameCallback;
+    const loop = () => {
+      if (stopped) return;
+      if (perFrame || !video.paused) drawRef.current();
+      handle = perFrame ? video.requestVideoFrameCallback!(loop) : requestAnimationFrame(loop);
+    };
+    handle = perFrame ? video.requestVideoFrameCallback!(loop) : requestAnimationFrame(loop);
+    const redraw = () => drawRef.current();
+    video.addEventListener("seeked", redraw);
+    video.addEventListener("loadeddata", redraw);
+    return () => {
+      stopped = true;
+      if (perFrame) video.cancelVideoFrameCallback?.(handle);
+      else cancelAnimationFrame(handle);
+      video.removeEventListener("seeked", redraw);
+      video.removeEventListener("loadeddata", redraw);
+    };
+  }, [media]);
 
   // Keyboard nudging
   useEffect(() => {
@@ -118,6 +161,8 @@ export function EditorCanvas({
       const tag = tgt?.tagName ?? "";
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (tgt?.isContentEditable) return;
+      // a focused slider (zoom, scrub bar, adjustments) uses the arrow keys itself
+      if (tgt?.getAttribute("role") === "slider") return;
       const step = 1;
       let dx = 0;
       let dy = 0;
@@ -146,10 +191,15 @@ export function EditorCanvas({
     };
   }, []);
 
+  // Footprint on screen: for quarter rotations (90/270) width and height swap.
+  const isQuarter = (((transform.rotation / 90) | 0) & 1) === 1;
+  const effW = isQuarter ? media.height : media.width;
+  const effH = isQuarter ? media.width : media.height;
+
   const imageRect = useMemo(() => {
-    const baseScale = Math.max(FRAME_W / image.width, FRAME_H / image.height);
-    const dw = image.width * baseScale * transform.scale;
-    const dh = image.height * baseScale * transform.scale;
+    const baseScale = Math.max(FRAME_W / effW, FRAME_H / effH);
+    const dw = effW * baseScale * transform.scale;
+    const dh = effH * baseScale * transform.scale;
     const cx = FRAME_W / 2 + transform.offsetX;
     const cy = FRAME_H / 2 + transform.offsetY;
     return {
@@ -161,7 +211,7 @@ export function EditorCanvas({
       right: cx + dw / 2,
       bottom: cy + dh / 2,
     };
-  }, [image, transform]);
+  }, [effW, effH, transform]);
 
   // ==== Pan / Pinch handlers ====
   const onCanvasPointerDown = useCallback((e: React.PointerEvent) => {
@@ -304,17 +354,18 @@ export function EditorCanvas({
       }
       const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, r.startScale * factor));
       const baseScale = imageRect.baseScale;
-      const newDw = image.width * baseScale * newScale;
-      const newDh = image.height * baseScale * newScale;
+      const newDw = effW * baseScale * newScale;
+      const newDh = effH * baseScale * newScale;
       const newCx = r.anchorX + (0.5 - info.ax) * newDw;
       const newCy = r.anchorY + (0.5 - info.ay) * newDh;
       onChangeRef.current({
+        ...transformRef.current,
         scale: newScale,
         offsetX: newCx - FRAME_W / 2,
         offsetY: newCy - FRAME_H / 2,
       });
     },
-    [displayScale, image, imageRect.baseScale],
+    [displayScale, effW, effH, imageRect.baseScale],
   );
 
   const onResizePointerUp = useCallback(() => {
