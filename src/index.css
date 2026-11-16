@@ -221,6 +221,47 @@
   }
 }
 
+/* Narrow header (phones in portrait): the banner shows one word at a time. "ULTRA" holds,
+   slides out to the left as "HAND" slides in from the right, "HAND" holds, then the same
+   in reverse. Each word is its own layer cut from the banner image (508 x 64: ULTRA is
+   x 8..254, HAND x 268..501; the layers show x 6..256 and x 258..508), so neither word
+   ever shows a piece of the other. Sizes are those at the header's 36 px height.
+   One leaves before the other arrives (no double exposure).
+   9 s per cycle: 3.6 s on each word, 0.9 s per change (0.45 s out, 0.45 s in). */
+@keyframes banner-ultra {
+  0%, 40% { opacity: 1; transform: translateX(0); filter: blur(0); }
+  45%, 95% { opacity: 0; transform: translateX(-18px); filter: blur(3px); }
+  100% { opacity: 1; transform: translateX(0); filter: blur(0); }
+}
+@keyframes banner-hand {
+  0%, 45% { opacity: 0; transform: translateX(18px); filter: blur(3px); }
+  50%, 90% { opacity: 1; transform: translateX(0); filter: blur(0); }
+  95%, 100% { opacity: 0; transform: translateX(18px); filter: blur(3px); }
+}
+.banner-split {
+  position: relative;
+  width: 140.625px;
+  height: 36px;
+  overflow: hidden;
+}
+.banner-split > span {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: auto 36px;
+  will-change: transform, opacity;
+  /* (longhands: the build's minifier turns a nameless `animation:` shorthand into none) */
+  animation-duration: 9s;
+  animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+  animation-iteration-count: infinite;
+}
+.banner-split > .banner-ultra { background-position: -3.375px 0; animation-name: banner-ultra; }
+.banner-split > .banner-hand { background-position: -145.125px 0; opacity: 0; animation-name: banner-hand; }
+@media (prefers-reduced-motion: reduce) {
+  /* no movement: a plain, slower cross-fade */
+  .banner-split > span { transform: none !important; filter: none !important; }
+}
+
 @layer utilities {
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;

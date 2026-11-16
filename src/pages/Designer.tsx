@@ -72,6 +72,10 @@ export function Designer() {
   // before the displayScale effect (which needs the sidebar width).
   const headerRef = useRef<HTMLElement>(null);
   const [compactHeader, setCompactHeader] = useState(false);
+  // Too narrow for the whole banner beside the buttons (a phone in portrait): show it one
+  // half at a time instead of making the header scroll sideways.
+  const [splitBanner, setSplitBanner] = useState(false);
+  const headerButtonsRef = useRef<HTMLDivElement>(null);
 
   // Two independent memories — one per layout mode.
   // Toggling always writes to the current mode's memory, so resizing
@@ -525,13 +529,35 @@ export function Designer() {
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    const THRESHOLD = 520;
-    const ro = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width ?? 0;
-      setCompactHeader(width < THRESHOLD);
-    });
+    const FULL_BANNER = (508 / 64) * 36;      // the banner's width at the header's height
+    const GAP = 12;
+    // The buttons' width with labels and as icons only, remembered as each is seen (it
+    // doesn't depend on the banner, so the choices below can't flip-flop).
+    const buttonsWidth = { labels: 330, icons: 136 };
+    let compact = false;
+    const measure = (width: number) => {
+      const now = headerButtonsRef.current?.offsetWidth ?? 0;
+      if (now > 0) buttonsWidth[compact ? "icons" : "labels"] = now;
+      // labels collapse to icons when the banner and labelled buttons no longer fit
+      // (never above 520 px, the old fixed threshold) ...
+      compact = width < Math.max(520, FULL_BANNER + GAP + buttonsWidth.labels);
+      setCompactHeader(compact);
+      // ... and the banner goes one word at a time when even the icons don't fit beside it
+      setSplitBanner(compact && width < FULL_BANNER + GAP + buttonsWidth.icons);
+    };
+    const ro = new ResizeObserver(() => measure(el.clientWidth - 48));
     ro.observe(el);
-    return () => ro.disconnect();
+    // the buttons change width when their labels collapse: measure again after that
+    const roButtons = new ResizeObserver(() => {
+      // the header's width without its padding (px-6 normally: the split header's
+      // tighter padding must not feed back into the decision)
+      measure(el.clientWidth - 48);
+    });
+    if (headerButtonsRef.current) roButtons.observe(headerButtonsRef.current);
+    return () => {
+      ro.disconnect();
+      roButtons.disconnect();
+    };
   }, []);
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
@@ -724,21 +750,36 @@ export function Designer() {
           there's spare room, otherwise the user can scroll. */}
       <header
         ref={headerRef}
-        className="flex items-center gap-3 px-6 py-3 border-b bg-card/50 overflow-x-auto overflow-y-hidden overscroll-contain"
+        className={`flex items-center gap-3 py-3 border-b bg-card/50 overflow-x-auto overflow-y-hidden overscroll-contain ${splitBanner ? "px-3" : "px-6"}`}
       >
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <img
-            src={`${import.meta.env.BASE_URL}ultrahand_banner.png`}
-            alt="Ultrahand"
-            onClick={handleLogoClick}
-            className={`h-9 w-auto select-none cursor-pointer transition-opacity ${recaching ? "opacity-50 animate-pulse" : "hover:opacity-80"}`}
-            draggable={false}
-            title="Click to check for updates"
-            data-testid="banner"
-          />
+        <div className="flex items-center gap-3 flex-shrink-0" data-banner-split={splitBanner}>
+          {splitBanner ? (
+            // one word at a time (see .banner-split in index.css)
+            <div
+              role="img"
+              aria-label="Ultrahand"
+              onClick={handleLogoClick}
+              className={`banner-split select-none cursor-pointer transition-opacity ${recaching ? "opacity-50 animate-pulse" : "hover:opacity-80"}`}
+              title="Click to check for updates"
+              data-testid="banner"
+            >
+              <span className="banner-ultra" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}ultrahand_banner.png)` }} />
+              <span className="banner-hand" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}ultrahand_banner.png)` }} />
+            </div>
+          ) : (
+            <img
+              src={`${import.meta.env.BASE_URL}ultrahand_banner.png`}
+              alt="Ultrahand"
+              onClick={handleLogoClick}
+              className={`h-9 w-auto select-none cursor-pointer transition-opacity ${recaching ? "opacity-50 animate-pulse" : "hover:opacity-80"}`}
+              draggable={false}
+              title="Click to check for updates"
+              data-testid="banner"
+            />
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+        <div ref={headerButtonsRef} className="flex items-center gap-2 flex-shrink-0 ml-auto">
           {(
             <Button
               size="sm"
