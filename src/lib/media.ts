@@ -145,43 +145,67 @@ export async function loadVideo(file: File): Promise<VideoMedia> {
   const video = document.createElement("video");
   video.muted = true;
   video.playsInline = true;
+  video.setAttribute("muted", "");
+  video.setAttribute("playsinline", "");
   video.preload = "auto";
   video.loop = false;
+  // Kept in the page, invisibly: iOS only decodes (and lets a canvas draw) a video that
+  // is part of the document.
+  video.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none;z-index:-1";
+  document.body.appendChild(video);
+  const release = () => {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    video.remove();
+    URL.revokeObjectURL(url);
+  };
+  // Resolves when the element reaches `state` (HTMLMediaElement.readyState) or better.
+  const ready = (state: number, ms: number) =>
+    new Promise<boolean>((resolve) => {
+      if (video.readyState >= state) return resolve(true);
+      const events = ["loadedmetadata", "loadeddata", "canplay", "playing", "timeupdate", "error"];
+      const done = (ok: boolean) => {
+        clearTimeout(timer);
+        for (const e of events) video.removeEventListener(e, check);
+        resolve(ok);
+      };
+      const check = () => {
+        if (video.error) done(false);
+        else if (video.readyState >= state) done(true);
+      };
+      const timer = setTimeout(() => done(video.readyState >= state), ms);
+      for (const e of events) video.addEventListener(e, check);
+    });
   try {
     // What the browser can open depends on the browser: MP4 / MOV / WEBM nearly everywhere,
     // MKV in Chrome and Edge, and only with video it has a decoder for (H.264, VP9, AV1;
     // HEVC only on some devices).
     const cantPlay = /\.mkv$/i.test(file.name)
       ? "This browser can't play this MKV. Chrome and Edge open MKV files with H.264, VP9 or AV1 video; otherwise convert it to MP4 first."
-      : "This browser can't play that video format. Try converting it to MP4 (H.264).";
-    await new Promise<void>((resolve, reject) => {
-      // some unsupported files never report an error: don't wait forever
-      const timer = setTimeout(() => reject(new Error(cantPlay)), 15000);
-      video.addEventListener(
-        "loadeddata",
-        () => {
-          clearTimeout(timer);
-          resolve();
-        },
-        { once: true },
-      );
-      video.addEventListener(
-        "error",
-        () => {
-          clearTimeout(timer);
-          reject(new Error(cantPlay));
-        },
-        { once: true },
-      );
-      video.src = url;
-    });
+      : "This browser couldn't open that video. If it keeps happening, convert it to an H.264 MP4.";
+    video.src = url;
+    video.load();
+    // Step 1: its size and length. (Some unsupported files never report an error, hence
+    // the time limit.)
+    if (!(await ready(1, 15000)) || video.error) throw new Error(cantPlay);
     if (!video.videoWidth || !video.videoHeight) throw new Error("The file has no video track.");
     if (!Number.isFinite(video.duration) || video.duration <= 0) {
       throw new Error("The video's length can't be read.");
     }
+    // Step 2: a first frame. Desktop browsers fetch one on their own; iOS loads nothing
+    // more until the video is told to play, so nudge it (muted + inline needs no tap).
+    if (!(await ready(2, 1500))) {
+      await video.play().catch(() => {});
+      await ready(2, 8000);
+      video.pause();
+    }
+    if (video.error) throw new Error(cantPlay);
     const fps = await measureFps(video);    // plays a few frames to time them
     video.pause();
-    await seekVideo(video, 0);
+    // back to the first frame (skipped if nothing could be decoded yet, e.g. iOS Low Power
+    // Mode refusing to play without a tap: the picture then appears on the first Play)
+    if (video.readyState >= 2) await seekVideo(video, 0).catch(() => {});
     video.pause();                          // hand it over paused on its first frame
     return {
       kind: "video",
@@ -192,17 +216,10 @@ export async function loadVideo(file: File): Promise<VideoMedia> {
       duration: video.duration,
       fps,
       format: "video",
-      dispose: () => {
-        video.pause();
-        video.removeAttribute("src");
-        video.load();
-        URL.revokeObjectURL(url);
-      },
+      dispose: release,
     };
   } catch (err) {
-    video.removeAttribute("src");
-    video.load();
-    URL.revokeObjectURL(url);
+    release();
     throw err;
   }
 }
